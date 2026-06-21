@@ -87,29 +87,14 @@ def publish_video_frame(side: str, jpg_bytes: bytes) -> None:
         print(f"MQTT publish failed for {side} video: rc={info.rc}")
 
 
-def publish_detection_coordinates(
-    buoy: str,
-    latitude: Optional[float],
-    longitude: Optional[float],
-    **extra,
-) -> None:
-    """Publish a detection's estimated coordinates for the given camera
-    buoy ('left'/'right') to detections/coordinates/<buoy>, as JSON:
-
-        {"buoy": "left", "latitude": ..., "longitude": ..., "timestamp": ..., ...extra}
-
-    Any additional keyword args (e.g. label, confidence, bearing) are
-    merged into the published payload.
-    """
-    
-    payload = {
-        "buoy": buoy,
-        "latitude": latitude,
-        "longitudCOORDINATE_TOPICe": longitude,
-        "timestamp": time.time(),
-        **extra,
-    }
+def publish_detection_coordinates(detections: list[dict]) -> None:
     client = _ensure_client_started()
-    info = client.publish(COORDINATE_TOPIC, payload=json.dumps(payload), qos=0, retain=False)
+    info = client.publish(
+        COORDINATE_TOPIC,
+        payload=json.dumps(detections),
+        qos=0,
+        retain=False,
+    )
+
     if info.rc != mqtt.MQTT_ERR_SUCCESS:
-        print(f"MQTT publish failed for {buoy} coordinates: rc={info.rc}")
+        print(f"MQTT publish failed: rc={info.rc}")
