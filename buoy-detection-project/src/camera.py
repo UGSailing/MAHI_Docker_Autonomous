@@ -298,7 +298,7 @@ def worker_thread(box: LatestFrameBox, side: str) -> None:
         frame = box.get()
 
         # Fetch the boat's current position and heading from MQTT.
-        boat_lat, boat_lon, heading = get_mqtt.get_boat_position()
+        boat_lat, boat_lon, heading, *_ = get_mqtt.get_boat_position()
 
         with model_lock:
             result = model(frame)[0]
