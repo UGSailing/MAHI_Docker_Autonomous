@@ -198,4 +198,4 @@ if __name__ == "__main__":
     # main()
     while(1):
         get_boat_position()
-        sleep(1)
+        time.sleep(1)
