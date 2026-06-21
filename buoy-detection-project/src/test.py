@@ -11,7 +11,7 @@ from post_mqtt import *
 
 
 def main() -> None:
-    publish_detection_coordinates([{"buoy": "1", "latitude": 51.082319260897066, "longitude": 2.5878400403344624}, {"buoy": "2", "latitude": 51.08243266810585, "longitude": 2.5884415111765375}])
+    publish_detection_coordinates([{"buoy": "1", "latitude": 51.08231926089576, "longitude": 2.5878133539137997}])
     
     
 if __name__ == "__main__":
