@@ -197,5 +197,5 @@ def main() -> None:
 if __name__ == "__main__":
     # main()
     while(1):
-        get_boat_position()
+        print(get_boat_position())
         time.sleep(1)
