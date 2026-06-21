@@ -1,0 +1,5 @@
+paho-mqtt
+opencv-python-headless
+numpy
+ffmpeg-python
+ultralytics
