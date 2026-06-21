@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 import paho.mqtt.client as mqtt
 from ultralytics import YOLO
+from get_mqtt import *
 
 RIGHT_STREAM_URL = os.getenv(
     "RIGHT_STREAM_URL",
