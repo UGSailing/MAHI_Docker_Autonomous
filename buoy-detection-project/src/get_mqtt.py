@@ -29,7 +29,7 @@ from typing import Optional, TypedDict
 
 import paho.mqtt.client as mqtt
 
-MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
+MQTT_HOST = os.getenv("MQTT_HOST", "172.17.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_USER = os.getenv("MQTT_USER")  # optional
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")  # optional
