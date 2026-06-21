@@ -36,10 +36,7 @@ VIDEO_TOPICS = {
     "right": "detections/video/right",
 }
 
-COORDINATE_TOPICS = {
-    "left": "detections/coordinates/left",
-    "right": "detections/coordinates/right",
-}
+COORDINATE_TOPIC = "detections/coordinates"
 
 _client: Optional[mqtt.Client] = None
 _client_lock = threading.Lock()
@@ -91,28 +88,28 @@ def publish_video_frame(side: str, jpg_bytes: bytes) -> None:
 
 
 def publish_detection_coordinates(
-    side: str,
+    buoy: str,
     latitude: Optional[float],
     longitude: Optional[float],
     **extra,
 ) -> None:
     """Publish a detection's estimated coordinates for the given camera
-    side ('left'/'right') to detections/coordinates/<side>, as JSON:
+    buoy ('left'/'right') to detections/coordinates/<buoy>, as JSON:
 
-        {"side": "left", "latitude": ..., "longitude": ..., "timestamp": ..., ...extra}
+        {"buoy": "left", "latitude": ..., "longitude": ..., "timestamp": ..., ...extra}
 
     Any additional keyword args (e.g. label, confidence, bearing) are
     merged into the published payload.
     """
-    topic = _topic_for(COORDINATE_TOPICS, side)
+    
     payload = {
-        "side": side,
+        "buoy": buoy,
         "latitude": latitude,
-        "longitude": longitude,
+        "longitudCOORDINATE_TOPICe": longitude,
         "timestamp": time.time(),
         **extra,
     }
     client = _ensure_client_started()
-    info = client.publish(topic, payload=json.dumps(payload), qos=0, retain=False)
+    info = client.publish(COORDINATE_TOPIC, payload=json.dumps(payload), qos=0, retain=False)
     if info.rc != mqtt.MQTT_ERR_SUCCESS:
-        print(f"MQTT publish failed for {side} coordinates: rc={info.rc}")
+        print(f"MQTT publish failed for {buoy} coordinates: rc={info.rc}")
