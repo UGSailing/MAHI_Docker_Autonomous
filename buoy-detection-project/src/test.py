@@ -7,7 +7,7 @@ publishing annotated frames and detection coordinates over MQTT
 """
 
 import camera
-import post_mqtt
+from post_mqtt import *
 
 
 def main() -> None:
