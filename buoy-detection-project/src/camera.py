@@ -298,7 +298,7 @@ def _process_cam(
 
     Mutates the module-level *buoy_list* under *buoy_list_lock*.
     """
-    if result.boxes is None or len(result.boxess) == 0:
+    if result.boxes is None or len(result.boxes) == 0:
         return
 
     latitude, longitude, heading, *_ = boat_pos
