@@ -294,7 +294,7 @@ def _process_cam(
       3. Convert to GPS.
       4. If close enough to a known buoy, update that buoy's position;
          otherwise append it as a new buoy.
-      5. Publish coordinates via post_mqtt.
+      5. Publish all detections for this frame in one call via post_mqtt.
 
     Mutates the module-level *buoy_list* under *buoy_list_lock*.
     """
@@ -313,6 +313,7 @@ def _process_cam(
     heading = float(heading)
 
     frame_h, frame_w = frame.shape[:2]
+    detections: list[dict] = []
 
     for box in result.boxes:
         x1, y1, x2, y2 = box.xyxy[0].tolist()
@@ -356,7 +357,11 @@ def _process_cam(
             else:
                 buoy_list.append((obj_lat, obj_lon))
 
-        post_mqtt.publish_detection_coordinates(side, obj_lat, obj_lon)
+        detections.append({"side": side, "latitude": obj_lat, "longitude": obj_lon})
+
+    # Publish all detections for this frame in a single call.
+    if detections:
+        post_mqtt.publish_detection_coordinates(detections)
 
 
 # ---------------------------------------------------------------------------
