@@ -302,6 +302,7 @@ def _process_cam(
         return
 
     latitude, longitude, heading, *_ = boat_pos
+    latitude, longitude, heading = float(latitude), float(longitude), float(heading)
     frame_h, frame_w = frame.shape[:2]
 
     for box in result.boxes:
