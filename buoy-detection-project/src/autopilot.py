@@ -25,7 +25,7 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
 
     # Step 1: take control
     client.publish("external/command/button", json.dumps({
-        "UUID": uuid.uuid4().hex,
+        "UUID": "",
         "action": "take_cmd"
     }))
     time.sleep(2)  # wait for control to be granted
