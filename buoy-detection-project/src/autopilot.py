@@ -107,7 +107,7 @@ def _build_plan(
 
     for (lat, lon), speed_knots in waypoints:
         # active=0: in persistent mode the autopilot handles waypoint advancement
-        lines.append(f"{waypoint_type}, {lat:.7f}, {lon:.7f}, {speed_knots:.3f}, 0")
+        lines.append(f"{waypoint_type}, {lat:.7f}, {lon:.7f}, {speed_knots:.3f}, 1")
 
     lines.append("END")
 
