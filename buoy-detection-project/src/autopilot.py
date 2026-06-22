@@ -17,7 +17,7 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
 
     lines = [f"START {uuid.uuid4().hex}"]
     for (lat, lon), speed in waypoints:
-        lines.append(f"W, {lat:.7f}, {lon:.7f}, {speed:.3f}, 1")
+        lines.append(f"W, {lat:.7f}, {lon:.7f}, {speed:.3f}, 0")
     lines.append("END")
     plan = "\r\n".join(lines) + "\r\n"
 
