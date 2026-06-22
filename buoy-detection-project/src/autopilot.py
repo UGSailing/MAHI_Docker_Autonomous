@@ -119,9 +119,9 @@ def _publish_plan(sense_id: str, plan: str, client: mqtt.Client) -> None:
     """
     Publish the plan to the persistent route topic.
 
-    Topic: sense-ID/autopilot/external/route-persistent
+    Topic: sense-ID/autopilot/external/route
     """
-    topic = f"{sense_id}/autopilot/external/route-persistent"
+    topic = f"{sense_id}/autopilot/external/route"
     result = client.publish(topic, plan)
 
     if result.rc != mqtt.MQTT_ERR_SUCCESS:
@@ -191,7 +191,7 @@ if __name__ == "__main__":
 
     # List of ((lat, lon), rpm) tuples
     route = [
-        ((51.14437436083065, 2.747180781572809), 500),
+        ((51.14437436083065, 2.747180781572809), 700),
     ]
 
     mqttc = mqtt.Client()
