@@ -11,6 +11,9 @@ import uuid
 import time
 import paho.mqtt.client as mqtt
 
+SENSE_ID  = "sense-3C6D66019257"
+AUTOPILOT_ID = "mahi-1234"
+
 
 def sail_path(
     sense_id: str,
@@ -25,7 +28,7 @@ def sail_path(
     Parameters
     ----------
     sense_id : str
-        The MAHI Sense device ID (e.g. "sense-ABC123").
+        The MAHI Sense device ID (e.g. "sense-3C6D66019257").
     waypoints : list of ((lat, lon), speed_knots)
         Ordered list of waypoints. Each entry is a tuple of:
           - (latitude: float, longitude: float)
@@ -37,9 +40,9 @@ def sail_path(
         If True (default), also sets the autopilot to PathTracking mode
         so the plan starts executing immediately after upload.
     waypoint_type : str
-        Default waypoint type for all points: "W" (normal), "L" (loiter),
-        or "D" is not supported via this helper (use build_plan() directly
-        for DP waypoints which require an extra heading parameter).
+        Default waypoint type for all points: "W" (normal), "L" (loiter).
+        "D" (dynamic position) is not supported via this helper as it
+        requires an extra heading parameter.
 
     Returns
     -------
@@ -51,22 +54,19 @@ def sail_path(
     ValueError
         If waypoints is empty or waypoint_type is unsupported.
     RuntimeError
-        If the MQTT publish fails (rc != 0).
+        If any MQTT publish fails (rc != 0).
 
     Notes
     -----
     - Control is taken automatically before uploading the plan. The function
-      waits 2 seconds for the vessel to switch to "External" state.
-    - The plan is uploaded as a *persistent* plan
-      (topic: sense-ID/autopilot/external/route-persistent).
+      waits 2 seconds for the vessel to switch to "External" state (§3.1).
+    - The plan is published to:
+        sense-ID/autopilot/mahi-1234/route
     - Each waypoint's 'active' flag is set to 0; in persistent mode the
-      autopilot manages advancement automatically.
+      autopilot manages advancement automatically (§3.10).
     - W waypoints are ticked off automatically when the vessel comes within
       the configured tick-off distance. L and D waypoints require explicit
       continuation triggers or C-line configuration.
-    - Call this function periodically if you need a live "navigate to here"
-      behaviour; for that use case, publish to the non-persistent route topic
-      (sense-ID/autopilot/external/route) and mark exactly one waypoint active=1.
     """
     if not waypoints:
         raise ValueError("waypoints list must not be empty.")
@@ -118,21 +118,20 @@ def _build_plan(
     waypoint_type: str,
 ) -> str:
     """
-    Assemble the MAHI plan text format.
+    Assemble the MAHI plan text format (API manual §3.10).
 
     Format per waypoint line (W / L):
         <Type>, <Lat>, <Lon>, <Speed>, <active>
-    active is always 0 for persistent plans (autopilot manages advancement).
+
+    active is always 0: in persistent mode the autopilot handles waypoint
+    advancement automatically; the flag has no effect (§3.10).
     """
-    # A fresh random token is required every time the plan is updated.
+    # A fresh random token is required every time the plan is updated (§3.10).
     plan_token = uuid.uuid4().hex
 
     lines = [f"START {plan_token}"]
 
     for (lat, lon), speed_knots in waypoints:
-        # active=0: in persistent mode the autopilot handles waypoint
-        # advancement automatically; setting active=1 has no effect per
-        # the API manual (§3.10) and may confuse the autopilot.
         lines.append(f"{waypoint_type}, {lat:.7f}, {lon:.7f}, {speed_knots:.3f}, 0")
 
     lines.append("END")
@@ -143,11 +142,11 @@ def _build_plan(
 
 def _publish_plan(sense_id: str, plan: str, client: mqtt.Client) -> None:
     """
-    Publish the plan to the persistent route topic.
+    Publish the plan to the route topic (§3.6).
 
-    Topic: sense-ID/autopilot/external/route-persistent
+    Topic: sense-ID/autopilot/mahi-1234/route
     """
-    topic = f"{sense_id}/autopilot/external/route-persistent"
+    topic = f"{sense_id}/autopilot/{AUTOPILOT_ID}/route"
     result = client.publish(topic, plan)
 
     if result.rc != mqtt.MQTT_ERR_SUCCESS:
@@ -183,8 +182,7 @@ def _set_path_tracking(client: mqtt.Client) -> None:
 def abort_plan(sense_id: str, client: mqtt.Client) -> None:
     """
     Abort a running plan by switching the autopilot to Manual mode and
-    uploading an empty (START … END) instant plan, which cancels the
-    current persistent plan (API manual §3.8).
+    uploading an empty (START … END) instant plan (API manual §3.8).
 
     Parameters
     ----------
@@ -201,9 +199,9 @@ def abort_plan(sense_id: str, client: mqtt.Client) -> None:
     })
     client.publish("external/mode_request", mode_msg)
 
-    # 2. Publish an empty instant plan to clear the previous persistent plan.
+    # 2. Publish an empty instant plan to cancel the previous one.
     empty_plan = f"START {uuid.uuid4().hex}\r\nEND\r\n"
-    client.publish(f"{sense_id}/autopilot/external/route", empty_plan)
+    client.publish(f"{sense_id}/autopilot/{AUTOPILOT_ID}/route", empty_plan)
 
 
 # ---------------------------------------------------------------------------
@@ -211,20 +209,19 @@ def abort_plan(sense_id: str, client: mqtt.Client) -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    SENSE_ID = "sense-3C6D66019257"
-    BROKER   = "172.17.0.1"
-    PORT     = 1883
+    BROKER = "172.17.0.1"
+    PORT   = 1883
 
     # List of ((lat, lon), speed_knots) tuples.
     route = [
-        ((51.14436890252032, 2.7471946822090847), 1000),
+        ((51.14436890252032, 2.7471946822090847), 2),
     ]
 
     mqttc = mqtt.Client()
     mqttc.connect(BROKER, PORT)
     mqttc.loop_start()
 
-    # sail_path() handles take_cmd internally, so no need to call it here.
+    # sail_path() handles take_cmd internally, so no need to call it separately.
     plan_text = sail_path(SENSE_ID, route, mqttc, execute=True)
     print("Published plan:\n", plan_text)
 
