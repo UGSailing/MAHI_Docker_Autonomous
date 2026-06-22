@@ -55,6 +55,8 @@ def sail_path(
 
     Notes
     -----
+    - Control is taken automatically before uploading the plan. The function
+      waits 2 seconds for the vessel to switch to "External" state.
     - The plan is uploaded as a *persistent* plan
       (topic: sense-ID/autopilot/external/route-persistent).
     - Each waypoint's 'active' flag is set to 0; in persistent mode the
@@ -76,6 +78,9 @@ def sail_path(
             "For DP (D) waypoints build the plan string manually."
         )
 
+    # Must take control before any commands will be accepted (API manual §3.1).
+    _take_control(client)
+
     plan = _build_plan(waypoints, waypoint_type)
     _publish_plan(sense_id, plan, client)
 
@@ -89,6 +94,25 @@ def sail_path(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+def _take_control(client: mqtt.Client) -> None:
+    """
+    Take external control of the vessel (API manual §3.1).
+
+    Publishes a take_cmd action to 'external/command/button' and waits
+    2 seconds for the vessel state to switch to "External". If the vessel
+    is already under external control this is a no-op from the autopilot's
+    perspective, but the publish is harmless.
+    """
+    msg = json.dumps({"UUID": uuid.uuid4().hex, "action": "take_cmd"})
+    result = client.publish("external/command/button", msg)
+    if result.rc != mqtt.MQTT_ERR_SUCCESS:
+        raise RuntimeError(
+            f"Failed to publish take_cmd (rc={result.rc})."
+        )
+    # Allow time for the vessel state to transition to "External".
+    time.sleep(2)
+
+
 def _build_plan(
     waypoints: list[tuple[tuple[float, float], float]],
     waypoint_type: str,
@@ -100,18 +124,20 @@ def _build_plan(
         <Type>, <Lat>, <Lon>, <Speed>, <active>
     active is always 0 for persistent plans (autopilot manages advancement).
     """
-    # A fresh random token is required every time the plan is updated
+    # A fresh random token is required every time the plan is updated.
     plan_token = uuid.uuid4().hex
 
     lines = [f"START {plan_token}"]
 
     for (lat, lon), speed_knots in waypoints:
-        # active=0: in persistent mode the autopilot handles waypoint advancement
-        lines.append(f"{waypoint_type}, {lat:.7f}, {lon:.7f}, {speed_knots:.3f}, 1")
+        # active=0: in persistent mode the autopilot handles waypoint
+        # advancement automatically; setting active=1 has no effect per
+        # the API manual (§3.10) and may confuse the autopilot.
+        lines.append(f"{waypoint_type}, {lat:.7f}, {lon:.7f}, {speed_knots:.3f}, 0")
 
     lines.append("END")
 
-    # MAHI expects \r\n line endings
+    # MAHI expects \r\n line endings.
     return "\r\n".join(lines) + "\r\n"
 
 
@@ -119,9 +145,9 @@ def _publish_plan(sense_id: str, plan: str, client: mqtt.Client) -> None:
     """
     Publish the plan to the persistent route topic.
 
-    Topic: sense-ID/autopilot/external/route
+    Topic: sense-ID/autopilot/external/route-persistent
     """
-    topic = f"{sense_id}/autopilot/external/route"
+    topic = f"{sense_id}/autopilot/external/route-persistent"
     result = client.publish(topic, plan)
 
     if result.rc != mqtt.MQTT_ERR_SUCCESS:
@@ -133,7 +159,7 @@ def _publish_plan(sense_id: str, plan: str, client: mqtt.Client) -> None:
 def _set_path_tracking(client: mqtt.Client) -> None:
     """
     Switch the autopilot to PathTracking mode with persistent=True so that
-    the uploaded plan starts executing immediately.
+    the uploaded plan starts executing immediately (API manual §3.4 / §3.7).
 
     Topic: external/mode_request
     """
@@ -158,7 +184,7 @@ def abort_plan(sense_id: str, client: mqtt.Client) -> None:
     """
     Abort a running plan by switching the autopilot to Manual mode and
     uploading an empty (START … END) instant plan, which cancels the
-    current persistent plan.
+    current persistent plan (API manual §3.8).
 
     Parameters
     ----------
@@ -167,7 +193,7 @@ def abort_plan(sense_id: str, client: mqtt.Client) -> None:
     client : mqtt.Client
         A connected paho-mqtt client instance.
     """
-    # 1. Switch out of PathTracking
+    # 1. Switch out of PathTracking.
     mode_msg = json.dumps({
         "autopilot_mode": "Manual",
         "autopilot_heading": 0.0,
@@ -175,7 +201,7 @@ def abort_plan(sense_id: str, client: mqtt.Client) -> None:
     })
     client.publish("external/mode_request", mode_msg)
 
-    # 2. Publish an empty instant plan to clear the previous one
+    # 2. Publish an empty instant plan to clear the previous persistent plan.
     empty_plan = f"START {uuid.uuid4().hex}\r\nEND\r\n"
     client.publish(f"{sense_id}/autopilot/external/route", empty_plan)
 
@@ -186,23 +212,19 @@ def abort_plan(sense_id: str, client: mqtt.Client) -> None:
 
 if __name__ == "__main__":
     SENSE_ID = "sense-3C6D66019257"
-    BROKER   = "172.17.0.1" 
+    BROKER   = "172.17.0.1"
     PORT     = 1883
 
-    # List of ((lat, lon), rpm) tuples
+    # List of ((lat, lon), speed_knots) tuples.
     route = [
-        ((51.14437436083065, 2.747180781572809), 700),
+        ((51.14436890252032, 2.7471946822090847), 1000),
     ]
 
     mqttc = mqtt.Client()
     mqttc.connect(BROKER, PORT)
     mqttc.loop_start()
 
-    # Optional: take control first
-    take_control_msg = json.dumps({"UUID": uuid.uuid4().hex, "action": "take_cmd"})
-    mqttc.publish("external/command/button", take_control_msg)
-    time.sleep(2)   # wait for state to switch to "External"
-
+    # sail_path() handles take_cmd internally, so no need to call it here.
     plan_text = sail_path(SENSE_ID, route, mqttc, execute=True)
     print("Published plan:\n", plan_text)
 
