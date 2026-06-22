@@ -5,7 +5,7 @@ RTSP capture + YOLO detection for the left/right cameras. Each camera runs
 a reader thread (pulls frames off RTSP, always keeping only the latest one
 so processing delay can't accumulate) and a worker thread (runs YOLO,
 computes 3-D buoy coordinates, and publishes the annotated frame plus GPS
-coordinates via post_mqtt).
+coordinates via post_mqtt.
 
 Coordinate system (camera-local, before heading rotation):
     x  – horizontal,  positive = starboard
@@ -149,7 +149,7 @@ def stream_frames(url: str):
 # snapshots get_mqtt.get_boat_position() immediately after capture.read(),
 # before any processing delay can accumulate.
 
-FrameWithPos = tuple[np.ndarray, tuple[float, float, float]]   # (frame, (lat, lon, heading))
+FrameWithPos = tuple[np.ndarray, dict]   # (frame, BoatPosition dict)
 
 
 class LatestFrameBox:
@@ -214,7 +214,7 @@ def _calculate_3d_coords(
 
 
 # ---------------------------------------------------------------------------
-# Coordinate conversion helpers  (kept from original script 2)
+# Coordinate conversion helpers
 # ---------------------------------------------------------------------------
 
 _EARTH_RADIUS_M = 6_378_137.0
@@ -277,14 +277,14 @@ def lat_lon_to_viewer_xy(
 
 
 # ---------------------------------------------------------------------------
-# Per-camera detection + buoy-list update  (from process_cam in script 2)
+# Per-camera detection + buoy-list update
 # ---------------------------------------------------------------------------
 
 def _process_cam(
     frame:       np.ndarray,
     result,
     side:        str,
-    boat_pos:    tuple[float, float, float],
+    boat_pos:    dict,
     distance_allowed: float = BUOY_MATCH_DISTANCE,
 ) -> None:
     """
@@ -298,13 +298,19 @@ def _process_cam(
 
     Mutates the module-level *buoy_list* under *buoy_list_lock*.
     """
+    # Guard: no position fix or no heading yet.
+    if boat_pos is None:
+        return
     if result.boxes is None or len(result.boxes) == 0:
         return
 
-    
+    # Safely extract numeric values from the BoatPosition dict.
     latitude  = float(boat_pos["latitude"])
     longitude = float(boat_pos["longitude"])
-    heading   = float(boat_pos["heading"])
+    heading   = boat_pos["heading"]
+    if heading is None:
+        return
+    heading = float(heading)
 
     frame_h, frame_w = frame.shape[:2]
 
@@ -364,14 +370,18 @@ def reader_thread(url: str, box: LatestFrameBox) -> None:
     The boat position is snapshotted here, immediately after each
     capture.read(), so it reflects the moment the frame was captured rather
     than the moment inference completes.
+
+    Frames are only queued when a valid position fix (including heading) is
+    available; frames captured before GPS lock are silently dropped.
     """
     while True:
         try:
             for frame in stream_frames(url):
-                # Snapshot position at frame-capture time, before any
-                # processing delay, then hand both off together.
                 boat_pos = get_mqtt.get_boat_position()
-                box.put((frame, boat_pos))
+                # Only queue when we have a fix and a heading; worker_thread
+                # guards too, but skipping here avoids unnecessary inference.
+                if boat_pos is not None and boat_pos["heading"] is not None:
+                    box.put((frame, boat_pos))
         except Exception as error:   # noqa: BLE001 – keep the reader alive
             print(f"Stream read error ({url}): {error}")
             time.sleep(1)
