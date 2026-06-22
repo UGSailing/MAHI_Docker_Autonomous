@@ -185,8 +185,8 @@ def abort_plan(sense_id: str, client: mqtt.Client) -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    SENSE_ID = "sense-EXAMPLE"
-    BROKER   = "192.168.1.100"   # replace with actual broker IP
+    SENSE_ID = "sense-3C6D66019257"
+    BROKER   = "172.17.0.1"   # replace with actual broker IP
     PORT     = 1883
 
     route = [
