@@ -24,7 +24,7 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
     client.loop_start()
 
     # Step 1: take control
-    client.publish("sense-3C6D66019257/autopilot/mahi-1234/external/command/button", json.dumps({
+    client.publish("sense-3C6D66019257/autopilot/external/command/button", json.dumps({
         "UUID": uuid.uuid4().hex,
         "action": "take_cmd"
     }))
