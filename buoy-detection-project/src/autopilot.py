@@ -30,7 +30,7 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
 if __name__ == "__main__":
     while (1):
         sail_path([
-            ((51.144391523921826, 2.74729127956809), 8.0),
+            ((51.144391523921826, 2.74729127956809), 8.0)
         ])   
         time.sleep(0.5)
 
