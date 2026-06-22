@@ -1,7 +1,7 @@
 """
 MAHI API - sail_path()
 Based on MAHI API manual (rev 0.3, 23/09/2025).
-Requires: paho-mqtt, get_mqtt.py
+Requires: paho-mqtt
 """
 
 import json
@@ -9,10 +9,10 @@ import uuid
 import time
 import math
 import paho.mqtt.client as mqtt
-from get_mqtt import get_boat_position
 
 
 ROUTE_TOPIC = "sense-3C6D66019257/autopilot/mahi-1234/route"
+GNSS_TOPIC = "sense-3C6D66019257/gnss/Left/pvt"
 ARRIVAL_RADIUS_M = 10.0
 
 
@@ -35,15 +35,33 @@ def publish_route(client, waypoints, active_index):
 
 
 def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
+    position = {"lat": None, "lon": None}
+
+    def on_message(client, userdata, msg):
+        try:
+            fix = json.loads(msg.payload.decode())
+            if not fix.get("FixIsValid"):
+                return
+            lat_lon = (fix.get("Position") or {}).get("LatLon") or {}
+            lat = lat_lon.get("Latitude")
+            lon = lat_lon.get("Longitude")
+            if lat is not None and lon is not None:
+                position["lat"] = lat
+                position["lon"] = lon
+        except (json.JSONDecodeError, KeyError):
+            pass
+
     client = mqtt.Client()
+    client.on_message = on_message
     client.connect("172.17.0.1", 1883)
-    client.loop_start()
+    client.subscribe(GNSS_TOPIC)
 
     # Take control
     client.publish("external/command/button", json.dumps({
         "UUID": uuid.uuid4().hex,
         "action": "take_cmd"
     }))
+    client.loop_start()
     time.sleep(2)
 
     for active_index, ((target_lat, target_lon), _) in enumerate(waypoints):
@@ -52,12 +70,14 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
 
         while True:
             time.sleep(0.5)
-            pos = get_boat_position()
-            if pos is not None:
-                dist = haversine(pos["latitude"], pos["longitude"], target_lat, target_lon)
+            if position["lat"] is not None:
+                dist = haversine(position["lat"], position["lon"], target_lat, target_lon)
+                print(f"Distance to waypoint {active_index}: {dist:.1f}m")
                 if dist < ARRIVAL_RADIUS_M:
-                    print(f"Reached waypoint {active_index} (dist={dist:.1f}m)")
+                    print(f"Reached waypoint {active_index}")
                     break
+            else:
+                print("Waiting for GPS fix...")
 
     print("All waypoints reached.")
     client.loop_stop()
@@ -65,8 +85,6 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
 
 
 if __name__ == "__main__":
-    pos = get_boat_position()
-    print(pos)
     sail_path([
         ((51.14338696558262, 2.747221672346525), 4.0),
         ((51.14344030487403, 2.74765152071387), 4.0)
