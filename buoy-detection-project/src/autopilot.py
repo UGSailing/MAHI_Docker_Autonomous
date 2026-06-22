@@ -65,6 +65,8 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
 
 
 if __name__ == "__main__":
+    pos = get_boat_position()
+    print(pos)
     sail_path([
         ((51.14338696558262, 2.747221672346525), 4.0),
         ((51.14344030487403, 2.74765152071387), 4.0)
