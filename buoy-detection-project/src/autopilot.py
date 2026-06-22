@@ -14,6 +14,7 @@ import paho.mqtt.client as mqtt
 
 def sail_path(
     sense_id: str,
+    pilot_id: str,
     waypoints: list[tuple[tuple[float, float], float]],
     client: mqtt.Client,
     execute: bool = True,
@@ -26,6 +27,8 @@ def sail_path(
     ----------
     sense_id : str
         The MAHI Sense device ID (e.g. "sense-3C6D66019257").
+    pilot_id : str
+        The MAHI pilot ID (e.g. "mahi-1234").
     waypoints : list of ((lat, lon), speed_knots)
         Ordered list of waypoints. Each entry is a tuple of:
           - (latitude: float, longitude: float)
@@ -51,10 +54,10 @@ def sail_path(
         raise ValueError("waypoint_type must be 'W' or 'L'.")
 
     plan = _build_plan(waypoints, waypoint_type)
-    _publish_plan(sense_id, plan, client)
+    _publish_plan(sense_id, pilot_id, plan, client)
 
     if execute:
-        _set_path_tracking(sense_id, client)
+        _set_path_tracking(client)
 
     return plan
 
@@ -79,25 +82,22 @@ def _build_plan(
     return "\r\n".join(lines) + "\r\n"
 
 
-def _publish_plan(sense_id: str, plan: str, client: mqtt.Client) -> None:
-    """Publish to the persistent route topic: sense-ID/autopilot/external/route-persistent"""
-    topic = f"{sense_id}/autopilot/external/route-persistent"
+def _publish_plan(sense_id: str, pilot_id: str, plan: str, client: mqtt.Client) -> None:
+    """Publish to: sense-ID/autopilot/pilot-ID/route"""
+    topic = f"{sense_id}/autopilot/{pilot_id}/route"
     result = client.publish(topic, plan)
     if result.rc != mqtt.MQTT_ERR_SUCCESS:
         raise RuntimeError(f"Failed to publish plan to '{topic}' (rc={result.rc}).")
 
 
-def _set_path_tracking(sense_id: str, client: mqtt.Client) -> None:
-    """
-    Switch the autopilot to PathTracking mode with persistent=True.
-    Topic: sense-ID/external/mode_request
-    """
+def _set_path_tracking(client: mqtt.Client) -> None:
+    """Publish to: external/mode_request (no prefix)"""
     mode_msg = json.dumps({
         "autopilot_mode": "PathTracking",
         "autopilot_heading": 0.0,
         "persistent": True,
     })
-    result = client.publish(f"{sense_id}/external/mode_request", mode_msg)
+    result = client.publish("external/mode_request", mode_msg)
     if result.rc != mqtt.MQTT_ERR_SUCCESS:
         raise RuntimeError(f"Failed to publish mode_request (rc={result.rc}).")
 
@@ -113,7 +113,7 @@ def abort_plan(sense_id: str, client: mqtt.Client) -> None:
         "autopilot_heading": 0.0,
         "persistent": False,
     })
-    client.publish(f"{sense_id}/external/mode_request", mode_msg)
+    client.publish("external/mode_request", mode_msg)
 
     empty_plan = f"START {uuid.uuid4().hex}\r\nEND\r\n"
     client.publish(f"{sense_id}/autopilot/external/route", empty_plan)
@@ -125,6 +125,7 @@ def abort_plan(sense_id: str, client: mqtt.Client) -> None:
 
 if __name__ == "__main__":
     SENSE_ID = "sense-3C6D66019257"
+    PILOT_ID = "mahi-1234"
     BROKER   = "172.17.0.1"
     PORT     = 1883
 
@@ -139,24 +140,24 @@ if __name__ == "__main__":
 
     def on_message(client, userdata, msg):
         global in_command
-        if msg.topic == f"{SENSE_ID}/onboard/state":
+        if msg.topic == "onboard/state":
             state = json.loads(msg.payload)
             print("Vessel state:", state)
             if state.get("state") == "External" and not in_command:
                 in_command = True
                 print("Control confirmed. Uploading plan...")
-                plan_text = sail_path(SENSE_ID, route, client, execute=True)
+                plan_text = sail_path(SENSE_ID, PILOT_ID, route, client, execute=True)
                 print("Published plan:\n", plan_text)
 
     mqttc = mqtt.Client()
     mqttc.on_message = on_message
     mqttc.connect(BROKER, PORT)
-    mqttc.subscribe(f"{SENSE_ID}/onboard/state")
+    mqttc.subscribe("onboard/state")
     mqttc.loop_start()
 
-    # Take control — topic: sense-ID/external/command/button
+    # Take control
     take_control_msg = json.dumps({"UUID": uuid.uuid4().hex, "action": "take_cmd"})
-    mqttc.publish(f"{SENSE_ID}/external/command/button", take_control_msg)
+    mqttc.publish("external/command/button", take_control_msg)
     print("Waiting for control confirmation...")
 
     timeout = 10
