@@ -401,7 +401,7 @@ def worker_thread(box: LatestFrameBox, side: str) -> None:
         frame, boat_pos = box.get()
 
         with model_lock:
-            result = model(frame)[0]
+            result = model(frame, conf=0.5)[0]
 
         _process_cam(frame, result, side, boat_pos)
 
