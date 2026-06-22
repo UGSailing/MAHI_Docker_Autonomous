@@ -35,7 +35,7 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
     for (lat, lon), speed in waypoints:
         lines.append(f"W, {lat:.7f}, {lon:.7f}, {speed:.3f}, 1")
     lines.append("END")
-    plan = "\r\n".join(lines) + "\r\n"
+    plan = "\r\n".join(lines)
 
     client.publish("sense-3C6D66019257/autopilot/mahi-1234/route", plan)
 
