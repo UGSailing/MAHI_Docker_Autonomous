@@ -70,6 +70,7 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
 
         while True:
             time.sleep(0.5)
+            publish_route(client, waypoints, active_index)
             if position["lat"] is not None:
                 dist = haversine(position["lat"], position["lon"], target_lat, target_lon)
                 print(f"Distance to waypoint {active_index}: {dist:.1f}m")
