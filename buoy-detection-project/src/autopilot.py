@@ -30,21 +30,14 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
     }))
     time.sleep(2)  # wait for control to be granted
 
-    # # Step 2: build and publish the route
-    # lines = [f"START {uuid.uuid4().hex}"]
-    # for (lat, lon), speed in waypoints:
-    #     lines.append(f"W, {lat:.7f}, {lon:.7f}, {speed:.3f}, 0")
-    # lines.append("END")
-    # plan = "\r\n".join(lines) + "\r\n"
+    # Step 2: build and publish the route
+    lines = [f"START {uuid.uuid4().hex}"]
+    for (lat, lon), speed in waypoints:
+        lines.append(f"W, {lat:.7f}, {lon:.7f}, {speed:.3f}, 0")
+    lines.append("END")
+    plan = "\r\n".join(lines) + "\r\n"
 
-    # client.publish("sense-3C6D66019257/autopilot/mahi-1234/route", plan)
-
-    # # Step 3: set autopilot to PathTracking
-    # client.publish("external/mode_request", json.dumps({
-    #     "autopilot_mode": "PathTracking",
-    #     "autopilot_heading": 0.0,
-    #     "persistent": True,
-    # }))
+    client.publish("sense-3C6D66019257/autopilot/mahi-1234/route", plan)
 
     client.loop_stop()
     client.disconnect()
@@ -52,8 +45,5 @@ def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
 
 if __name__ == "__main__":
     sail_path([
-        ((51.0728671, 4.3654559), 1.0),
-        ((51.0744104, 4.3659370), 1.0),
-        ((51.0754940, 4.3660841), 1.5),
-        ((51.0763674, 4.3662915), 2.0),
+        ((51.14437193985988, 2.7471670611359977), 1.0),
     ])
