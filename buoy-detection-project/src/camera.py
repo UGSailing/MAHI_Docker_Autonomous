@@ -579,7 +579,7 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
             )
             if updated:
                 # Publish the full history so the dashboard map stays in sync.
-                post_mqtt.publish_buoy_positions(buoy_list)
+                post_mqtt.publish_detection_coordinates(buoy_list)
 
         # Encode and publish annotated preview frames for both sides.
         # Re-run inference just for annotation (results are lightweight to reuse
