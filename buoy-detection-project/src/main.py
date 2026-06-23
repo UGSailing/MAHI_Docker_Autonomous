@@ -90,7 +90,7 @@ def main() -> None:
             boat_pos["latitude"], buoy0_lat,
             boat_pos["longitude"], buoy0_lon,
         )
-        if dist < 7:
+        if dist < 1:
             break
         time.sleep(0.5)
 
@@ -113,7 +113,7 @@ def main() -> None:
             boat_pos["latitude"], buoy1_lat,
             boat_pos["longitude"], buoy1_lon,
         )
-        if dist < 7:
+        if dist < 1:
             break
         time.sleep(0.5)
 
