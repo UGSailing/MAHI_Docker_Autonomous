@@ -57,7 +57,7 @@ def padplanning_wrapper(buoy_positions, x, state):
 
     # Fetch current vehicle telemetry
     boat_position = get_mqtt.get_boat_position()
-    boat_pos = (boat_position['longitude'], position['latitude'])  # (lon, lat) for the slalom script
+    boat_pos = (boat_position['longitude'], boat_position['latitude'])  # (lon, lat) for the slalom script
     heading = boat_position['heading']
 
     # Safely compute offset entirely in meters
