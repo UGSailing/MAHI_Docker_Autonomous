@@ -135,10 +135,6 @@ def padplanning_slalom(
     pts = [to_xy(*b) for b in buoys]
     b1, b2 = pts[0], pts[1]
 
-    print("BOEI POSITIES")
-    print(b1)
-    print(b2)
-
     axis = b2 - b1
     d = np.linalg.norm(axis)
     if d < 1e-3:

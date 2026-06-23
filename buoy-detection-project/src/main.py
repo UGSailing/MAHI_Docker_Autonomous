@@ -43,8 +43,8 @@ def main() -> None:
     with camera.buoy_list_lock:
         camera.buoy_list.clear()
         camera.buoy_list.extend([
-            [(50.0, 3.0)],   # buoy 0 — replace with real a-priori GPS coords
-            [(50.0, 3.0)],   # buoy 1 — replace with real a-priori GPS coords
+            [(51.09801380840991, 2.575587604490833)],   # buoy 0 — replace with real a-priori GPS coords
+            [(51.09809826279077, 2.57554394128149)],   # buoy 1 — replace with real a-priori GPS coords
         ])
 
     # ------------------------------------------------------------------
