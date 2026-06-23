@@ -86,7 +86,7 @@ ANGLE_OFFSET_RIGHT = math.radians(float(os.getenv("ANGLE_OFFSET_RIGHT", "0")))
 
 # How close (metres, in boat-local XY) a new detection must be to an
 # existing known buoy to be considered the same object.
-BUOY_MATCH_DISTANCE = float(os.getenv("BUOY_MATCH_DISTANCE", "50.0"))
+BUOY_MATCH_DISTANCE = float(os.getenv("BUOY_MATCH_DISTANCE", "1.0"))
 
 # ---------------------------------------------------------------------------
 # YOLO model (shared across both worker threads, protected by a lock)
@@ -479,33 +479,47 @@ def process_pair(
             })
 
     # Detections that didn't match any existing buoy become new entries.
-    # Re-run _process_cam with an empty anchor list so every detection maps
-    # to a fresh slot, then de-duplicate against already-committed positions.
+    # Collect all GPS positions produced by both cameras this frame, then
+    # add any that weren't already committed as a matched update.
     committed_positions = {pos for pos in update_list if pos is not None}
 
-    new_update: list[tuple[float, float] | None] = []
-    new_meters: list[tuple[float, float, float]] = []
-    new_update, _ = _process_cam(
-        left_frame, left_result, "left", boat_pos, new_update, new_meters
-    )
-    new_update, _ = _process_cam(
-        right_frame, right_result, "right", boat_pos, new_update, new_meters
-    )
+    all_detected: list[tuple[float, float]] = []
+    for result, side in ((left_result, "left"), (right_result, "right")):
+        if result.boxes is None or len(result.boxes) == 0:
+            continue
+        frame = left_frame if side == "left" else right_frame
+        frame_h, frame_w = frame.shape[:2]
+        for box in result.boxes:
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            apparent_radius_px = abs(x2 - x1) / 2
+            cx_px = (x1 + x2) / 2
+            cy_px = (y1 + y2) / 2
+            depth = _calculate_depth(apparent_radius_px, frame_w)
+            if depth is None:
+                continue
+            x, y, _z = _calculate_3d_coords(cx_px, cy_px, depth, frame_w, frame_h)
+            if side == "left":
+                x += CAMERA_SEPARATION / 2
+            else:
+                x -= CAMERA_SEPARATION / 2
+            y += CAMERA_TO_BOAT_CENTRE
+            obj_lat, obj_lon = viewer_offset_lat_lon(latitude, longitude, heading, x, y)
+            all_detected.append((obj_lat, obj_lon))
 
-    for pos in new_update:
-        if pos is not None and pos not in committed_positions:
+    for pos in all_detected:
+        if pos not in committed_positions:
             buoy_positions.append([pos])
             updated = True
-            detections.append({
-                "side": "fused",
-                "latitude":  pos[0],
-                "longitude": pos[1],
-            })
             committed_positions.add(pos)
 
-    # Publish all detections for this pair-frame in a single call.
-    if detections:
-        post_mqtt.publish_detection_coordinates(detections)
+    # Always publish the full buoy list (latest position per buoy) so the
+    # dashboard stays in sync — including on the very first call so seed
+    # positions are immediately visible even before any detection lands.
+    post_mqtt.publish_detection_coordinates([
+        {"latitude": history[-1][0], "longitude": history[-1][1]}
+        for history in buoy_positions
+        if history
+    ])
 
     return updated, buoy_positions
 
@@ -557,11 +571,15 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
         # this pair (they are captured within milliseconds of each other).
         boat_pos = left_pos
 
-        # process_pair runs YOLO internally and updates buoy_positions in place.
+        # process_pair runs YOLO internally, updates buoy_positions in place,
+        # and publishes the latest buoy list to detections/coordinates.
         with buoy_list_lock:
             updated, _ = process_pair(
                 boat_pos, buoy_list, left_frame, right_frame
             )
+            if updated:
+                # Publish the full history so the dashboard map stays in sync.
+                post_mqtt.publish_buoy_positions(buoy_list)
 
         # Encode and publish annotated preview frames for both sides.
         # Re-run inference just for annotation (results are lightweight to reuse
@@ -628,6 +646,9 @@ if __name__ == "__main__":
     _post_mqtt_stub = types.ModuleType("post_mqtt")
     _post_mqtt_stub.publish_detection_coordinates = lambda detections: print(
         f"  [post_mqtt] publish_detection_coordinates: {detections}"
+    )
+    _post_mqtt_stub.publish_buoy_update_flag = lambda flag: print(
+        f"  [post_mqtt] publish_buoy_update_flag: {flag}"
     )
     _post_mqtt_stub.publish_video_frame = lambda side, data: None
     sys.modules["post_mqtt"] = _post_mqtt_stub
