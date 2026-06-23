@@ -1,11 +1,20 @@
 """
 camera.py
 
-RTSP capture + YOLO detection for the left/right cameras. Each camera runs
+RTSP capture + YOLO detection for the left/right cameras.  Each camera runs
 a reader thread (pulls frames off RTSP, always keeping only the latest one
-so processing delay can't accumulate) and a worker thread (runs YOLO,
-computes 3-D buoy coordinates, and publishes the annotated frame plus GPS
-coordinates via post_mqtt.
+so processing delay can't accumulate).  A single shared worker thread grabs
+the latest frame from *both* cameras, runs YOLO on each, then calls
+process_pair() to fuse detections across both cameras before updating the
+buoy list.  Annotated preview frames and GPS coordinates are published via
+post_mqtt; an `updated` flag is also published so external consumers know
+when a buoy's history has grown.
+
+Buoy list structure:
+    buoy_list[i]  →  [(lat₀, lon₀), (lat₁, lon₁), ...]
+    The *first* tuple is the a-priori seed position used for matching.
+    Every new confirmed detection is *appended*, so the full history is
+    always available.
 
 Coordinate system (camera-local, before heading rotation):
     x  – horizontal,  positive = starboard
@@ -89,12 +98,18 @@ model_lock = threading.Lock()
 # ---------------------------------------------------------------------------
 # Known-buoy list (shared across both worker threads, protected by a lock)
 # ---------------------------------------------------------------------------
-# Each entry: (lat, lon).  Updated in place by both workers when a detection
-# is close enough to an existing buoy, or appended when it's a new one.
-# The list and its lock are module-level so process_pair() can access them
-# from either worker thread without extra plumbing.
+# Each entry is a list of (lat, lon) tuples representing the full detection
+# history for one buoy.  The *first* tuple in each sub-list is the a-priori
+# position used for matching; every new detection is *appended* so callers
+# can inspect the full history.  Updated in place by both workers under
+# buoy_list_lock.
+#
+# Structure: [ [(lat, lon), (lat, lon), ...],   # buoy 0 history
+#              [(lat, lon), ...],                # buoy 1 history
+#              ... ]
 
-buoy_list: list[tuple[float, float]] = []
+BuoyHistory = list[tuple[float, float]]
+buoy_list: list[BuoyHistory] = []
 buoy_list_lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
@@ -286,43 +301,53 @@ def lat_lon_to_viewer_xy(
 
 
 # ---------------------------------------------------------------------------
-# Per-camera detection + buoy-list update
+# Per-camera detection pass + pair fusion
 # ---------------------------------------------------------------------------
 
 def _process_cam(
-    frame:       np.ndarray,
+    frame:            np.ndarray,
     result,
-    side:        str,
-    boat_pos:    dict,
-    distance_allowed: float = BUOY_MATCH_DISTANCE,
-) -> None:
+    side:             str,
+    boat_pos:         dict,
+    update_list:      list[tuple[float, float] | None],
+    buoy_list_meters: list[tuple[float, float, float]],
+) -> tuple[list[tuple[float, float] | None], list[tuple[float, float, float]]]:
     """
     For every YOLO detection in *result*:
       1. Estimate depth and compute camera-local 3-D coordinates.
       2. Apply camera-to-boat-centre offsets.
       3. Convert to GPS.
-      4. If close enough to a known buoy, update that buoy's position;
-         otherwise append it as a new buoy.
-      5. Publish all detections for this frame in one call via post_mqtt.
+      4. For each known buoy slot, track the *closest* detection seen so far
+         this pair-frame (update_list / buoy_list_meters are mutated in place).
 
-    Mutates the module-level *buoy_list* under *buoy_list_lock*.
+    Returns the mutated (update_list, buoy_list_meters).
+
+    This function does NOT acquire buoy_list_lock — callers must do so
+    before calling and hold it until they have finished using the return values.
+
+    Parameters
+    ----------
+    update_list:
+        One slot per known buoy, initially all None.  When a detection is
+        the closest match for slot i, update_list[i] is set to (lat, lon).
+    buoy_list_meters:
+        One slot per known buoy: (x_buoy, y_buoy, best_distance_so_far).
+        best_distance_so_far starts at distance_allowed and is tightened
+        each time a closer detection is found.
     """
-    # Guard: no position fix or no heading yet.
     if boat_pos is None:
-        return
+        return update_list, buoy_list_meters
     if result.boxes is None or len(result.boxes) == 0:
-        return
+        return update_list, buoy_list_meters
 
-    # Safely extract numeric values from the BoatPosition dict.
     latitude  = float(boat_pos["latitude"])
     longitude = float(boat_pos["longitude"])
     heading   = boat_pos["heading"]
     if heading is None:
-        return
+        return update_list, buoy_list_meters
     heading = float(heading)
 
     frame_h, frame_w = frame.shape[:2]
-    detections: list[dict] = []
 
     for box in result.boxes:
         x1, y1, x2, y2 = box.xyxy[0].tolist()
@@ -338,7 +363,7 @@ def _process_cam(
 
         # Shift from camera-lens origin to boat centre.
         # Left camera is to port  → add half-separation to move right to centre.
-        # Right camera is to starboard Bourn → subtract.
+        # Right camera is to starboard → subtract.
         if side == "left":
             x += CAMERA_SEPARATION / 2
         else:
@@ -349,28 +374,143 @@ def _process_cam(
 
         obj_lat, obj_lon = viewer_offset_lat_lon(latitude, longitude, heading, x, y)
 
-        # Update existing buoy or append a new one.
-        with buoy_list_lock:
-            best_idx  = None
-            best_dist = distance_allowed
+        # Find the buoy slot whose a-priori position is closest to this
+        # detection, and only update if we beat the current best distance.
+        for i, (x_buoy, y_buoy, best_dist) in enumerate(buoy_list_meters):
+            dist = math.hypot(x - x_buoy, y - y_buoy)
+            if dist < best_dist:
+                buoy_list_meters[i] = (x_buoy, y_buoy, dist)
+                update_list[i] = (obj_lat, obj_lon)
 
-            for i, (b_lat, b_lon) in enumerate(buoy_list):
-                bx, by = lat_lon_to_viewer_xy(latitude, longitude, heading, b_lat, b_lon)
-                dist   = math.hypot(x - bx, y - by)
-                if dist < best_dist:
-                    best_dist = dist
-                    best_idx  = i
+    return update_list, buoy_list_meters
 
-            if best_idx is not None:
-                buoy_list[best_idx] = (obj_lat, obj_lon)
-            else:
-                buoy_list.append((obj_lat, obj_lon))
 
-        detections.append({"side": side, "latitude": obj_lat, "longitude": obj_lon})
+def process_pair(
+    boat_pos:         dict,
+    buoy_positions:   list[BuoyHistory],
+    left_frame:       np.ndarray,
+    right_frame:      np.ndarray,
+    distance_allowed: float = BUOY_MATCH_DISTANCE,
+) -> tuple[bool, list[BuoyHistory]]:
+    """
+    Run YOLO on both frames and fuse detections against *buoy_positions*.
 
-    # Publish all detections for this frame in a single call.
+    *buoy_positions* is passed in explicitly (rather than using the
+    module-level buoy_list) so callers can manage their own history list
+    and the function is straightforward to test in isolation.
+
+    For each buoy already in buoy_positions the a-priori position (first
+    history entry) is converted to boat-local metres and used as the
+    matching anchor.  The best detection (across both cameras) within
+    distance_allowed is appended to that buoy's history list.  Detections
+    that do not match any existing buoy are appended as new single-entry
+    buoy histories.
+
+    All detections for this pair-frame are published together via post_mqtt.
+
+    Parameters
+    ----------
+    boat_pos:
+        Dict with keys 'latitude', 'longitude', 'heading' — as returned by
+        get_mqtt.get_boat_position().
+    buoy_positions:
+        Current buoy history list.  Modified in place AND returned so the
+        caller can use either style:
+            updated, buoy_positions = process_pair(boat_pos, buoy_positions, ...)
+    left_frame, right_frame:
+        Raw BGR frames from the left and right cameras.
+    distance_allowed:
+        Maximum boat-local distance (metres) for a detection to be matched
+        to an existing buoy.
+
+    Returns
+    -------
+    (updated, buoy_positions)
+        updated        – True if at least one buoy's history was extended.
+        buoy_positions – The (mutated) history list, same object as the input.
+    """
+    if boat_pos is None:
+        return False, buoy_positions
+
+    latitude  = float(boat_pos["latitude"])
+    longitude = float(boat_pos["longitude"])
+    heading   = boat_pos["heading"]
+    if heading is None:
+        return False, buoy_positions
+    heading = float(heading)
+
+    # Run YOLO on both frames under the shared model lock.
+    with model_lock:
+        left_result  = model(left_frame,  conf=0.5)[0]
+        right_result = model(right_frame, conf=0.5)[0]
+
+    # Convert each buoy's a-priori position (first history entry) to
+    # boat-local metres so we can compare against pixel-derived distances.
+    buoy_list_meters: list[tuple[float, float, float]] = []
+    for history in buoy_positions:
+        a_priori_lat, a_priori_lon = history[0]
+        bx, by = lat_lon_to_viewer_xy(latitude, longitude, heading,
+                                      a_priori_lat, a_priori_lon)
+        buoy_list_meters.append((bx, by, distance_allowed))
+
+    # One update slot per known buoy, starts empty.
+    update_list: list[tuple[float, float] | None] = [None] * len(buoy_positions)
+
+    # Process both cameras; each call may tighten the best-distance for
+    # any slot, so the truly closest detection wins across both cameras.
+    update_list, buoy_list_meters = _process_cam(
+        left_frame, left_result, "left", boat_pos, update_list, buoy_list_meters
+    )
+    update_list, buoy_list_meters = _process_cam(
+        right_frame, right_result, "right", boat_pos, update_list, buoy_list_meters
+    )
+
+    # Commit updates: append new readings to matching buoy histories.
+    updated = False
+    detections: list[dict] = []
+    for i, new_pos in enumerate(update_list):
+        if new_pos is not None:
+            buoy_positions[i].append(new_pos)
+            updated = True
+            detections.append({
+                "side": "fused",
+                "latitude":  new_pos[0],
+                "longitude": new_pos[1],
+            })
+
+    # Detections that didn't match any existing buoy become new entries.
+    # Re-run _process_cam with an empty anchor list so every detection maps
+    # to a fresh slot, then de-duplicate against already-committed positions.
+    committed_positions = {pos for pos in update_list if pos is not None}
+
+    new_update: list[tuple[float, float] | None] = []
+    new_meters: list[tuple[float, float, float]] = []
+    new_update, _ = _process_cam(
+        left_frame, left_result, "left", boat_pos, new_update, new_meters
+    )
+    new_update, _ = _process_cam(
+        right_frame, right_result, "right", boat_pos, new_update, new_meters
+    )
+
+    for pos in new_update:
+        if pos is not None and pos not in committed_positions:
+            buoy_positions.append([pos])
+            updated = True
+            detections.append({
+                "side": "fused",
+                "latitude":  pos[0],
+                "longitude": pos[1],
+            })
+            committed_positions.add(pos)
+
+    # Publish all detections for this pair-frame in a single call.
     if detections:
         post_mqtt.publish_detection_coordinates(detections)
+
+    # Expose the updated flag via MQTT so external consumers can react.
+    post_mqtt.publish_buoy_update_flag(updated)
+
+    return updated, buoy_positions
 
 
 # ---------------------------------------------------------------------------
@@ -401,32 +541,53 @@ def reader_thread(url: str, box: LatestFrameBox) -> None:
             time.sleep(1)
 
 
-def worker_thread(box: LatestFrameBox, side: str) -> None:
+def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
     """
-    Pull the latest (frame, boat_pos) pair, run YOLO, update the buoy list,
-    and publish the annotated preview frame.
+    Pull the latest (frame, boat_pos) pair from *both* cameras, fuse
+    detections via process_pair(), and publish annotated preview frames.
+
+    A single worker thread drives both cameras so that process_pair() always
+    sees a temporally-consistent left/right pair, and the best-distance
+    matching logic in _process_cam() can compete across both cameras before
+    any buoy history is updated.
     """
     while True:
-        frame, boat_pos = box.get()
+        # Block until both boxes have a fresh frame.
+        left_frame,  left_pos  = left_box.get()
+        right_frame, right_pos = right_box.get()
 
+        # Use the left camera's position as the authoritative snapshot for
+        # this pair (they are captured within milliseconds of each other).
+        boat_pos = left_pos
+
+        # process_pair runs YOLO internally and updates buoy_positions in place.
+        with buoy_list_lock:
+            updated, _ = process_pair(
+                boat_pos, buoy_list, left_frame, right_frame
+            )
+
+        # Encode and publish annotated preview frames for both sides.
+        # Re-run inference just for annotation (results are lightweight to reuse
+        # but model_lock was already released inside process_pair, so we infer
+        # again here to get the result objects for .plot()).
         with model_lock:
-            result = model(frame, conf=0.5)[0]
+            left_result  = model(left_frame,  conf=0.5)[0]
+            right_result = model(right_frame, conf=0.5)[0]
 
-        _process_cam(frame, result, side, boat_pos)
+        for side, frame, result in (
+            ("left",  left_frame,  left_result),
+            ("right", right_frame, right_result),
+        ):
+            annotated = result.plot()
 
-        # Encode and publish the annotated preview frame.
-        annotated = result.plot()
+            with _snapshot_lock:
+                _latest_snapshots[side]["raw"]       = frame.copy()
+                _latest_snapshots[side]["annotated"] = annotated.copy()
 
-        # Update the thread-safe global snapshot cache
-        with _snapshot_lock:
-            _latest_snapshots[side]["raw"] = frame.copy()
-            _latest_snapshots[side]["annotated"] = annotated.copy()
-
-        annotated = cv2.resize(annotated, (640, 360))
-        ok, jpg = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 40])
-        if not ok:
-            continue
-        post_mqtt.publish_video_frame(side, jpg.tobytes())
+            annotated = cv2.resize(annotated, (640, 360))
+            ok, jpg = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 40])
+            if ok:
+                post_mqtt.publish_video_frame(side, jpg.tobytes())
 
 
 # ---------------------------------------------------------------------------
@@ -457,6 +618,101 @@ def get_current_frame(side: str, annotated: bool = True) -> np.ndarray | None:
 # Entry point
 # ---------------------------------------------------------------------------
 
+if __name__ == "__main__":
+    import sys
+    import pprint
+
+    # -----------------------------------------------------------------------
+    # Minimal stubs so the test runs without a live MQTT broker or cameras.
+    # -----------------------------------------------------------------------
+    import types
+
+    # Stub post_mqtt so publish calls are no-ops that just print.
+    _post_mqtt_stub = types.ModuleType("post_mqtt")
+    _post_mqtt_stub.publish_detection_coordinates = lambda detections: print(
+        f"  [post_mqtt] publish_detection_coordinates: {detections}"
+    )
+    _post_mqtt_stub.publish_buoy_update_flag = lambda flag: print(
+        f"  [post_mqtt] publish_buoy_update_flag: {flag}"
+    )
+    _post_mqtt_stub.publish_video_frame = lambda side, data: None
+    sys.modules["post_mqtt"] = _post_mqtt_stub
+
+    # Stub get_mqtt so get_boat_position returns a fixed test position.
+    _get_mqtt_stub = types.ModuleType("get_mqtt")
+    _get_mqtt_stub.get_boat_position = lambda: {
+        "latitude":  50.91479228756449,
+        "longitude": 2.689219528227875,
+        "heading":   90.0,
+    }
+    sys.modules["get_mqtt"] = _get_mqtt_stub
+
+    # Re-bind the module-level names so process_pair picks up the stubs.
+    import importlib, camera as _self  # noqa: E401
+    _self.post_mqtt = _post_mqtt_stub
+    _self.get_mqtt  = _get_mqtt_stub
+
+    # -----------------------------------------------------------------------
+    # Test fixtures
+    # -----------------------------------------------------------------------
+    LEFT_IMAGE  = os.getenv("TEST_LEFT_IMAGE",  "buoy_test_2.jpeg")
+    RIGHT_IMAGE = os.getenv("TEST_RIGHT_IMAGE", "buoy_test_3.jpeg")
+
+    left_frame = cv2.imread(LEFT_IMAGE)
+    if left_frame is None:
+        print(f"ERROR: could not read left test image '{LEFT_IMAGE}'")
+        sys.exit(1)
+
+    right_frame = cv2.imread(RIGHT_IMAGE)
+    if right_frame is None:
+        print(f"ERROR: could not read right test image '{RIGHT_IMAGE}'")
+        sys.exit(1)
+
+    print(f"Loaded test images: {LEFT_IMAGE} {left_frame.shape}, "
+          f"{RIGHT_IMAGE} {right_frame.shape}")
+
+    # Seed buoy_positions with three a-priori known positions (same as the
+    # original test script) so we can verify matching works.
+    buoy_positions: list[BuoyHistory] = [
+        [(50.91480024376357, 2.6892946991623328), (50.91480912186219, 2.6893154862823034)],
+        [(50.91480912186219, 2.6893154862823034)],
+        [(50.914794230962976, 2.6892700529467866)],
+    ]
+
+    print("\n--- Initial buoy_positions ---")
+    pprint.pprint(buoy_positions)
+
+    # -----------------------------------------------------------------------
+    # Run process_pair exactly as the production loop will call it.
+    # -----------------------------------------------------------------------
+    boat_pos = _get_mqtt_stub.get_boat_position()
+    print(f"\nboat_pos: {boat_pos}")
+    print("\n--- Calling process_pair (distance_allowed=2) ---")
+
+    updated, buoy_positions = process_pair(
+        boat_pos, buoy_positions, left_frame, right_frame, distance_allowed=2
+    )
+
+    print(f"\nupdated: {updated}")
+    print("\n--- buoy_positions after process_pair ---")
+    pprint.pprint(buoy_positions)
+
+    # -----------------------------------------------------------------------
+    # Summary
+    # -----------------------------------------------------------------------
+    total_detections = sum(len(h) - 1 for h in buoy_positions
+                           if len(h) > 1)
+    new_buoys        = sum(1 for h in buoy_positions if len(h) == 1
+                           and h[0] not in [
+                               (50.91480024376357, 2.6892946991623328),
+                               (50.91480912186219, 2.6893154862823034),
+                               (50.914794230962976, 2.6892700529467866),
+                           ])
+    print(f"\nSummary: {len(buoy_positions)} buoys tracked, "
+          f"{total_detections} new detection(s) matched to existing buoys, "
+          f"{new_buoys} brand-new buoy(s) discovered.")
+
+
 def run_cameras() -> None:
     right_box = LatestFrameBox()
     left_box  = LatestFrameBox()
@@ -468,11 +724,10 @@ def run_cameras() -> None:
         threading.Thread(
             target=reader_thread, args=(LEFT_STREAM_URL, left_box), daemon=True
         ),
+        # Single worker thread drives both cameras so process_pair() always
+        # sees a matched left/right pair before updating the buoy list.
         threading.Thread(
-            target=worker_thread, args=(right_box, "right"), daemon=True
-        ),
-        threading.Thread(
-            target=worker_thread, args=(left_box, "left"), daemon=True
+            target=worker_thread, args=(left_box, right_box), daemon=True
         ),
     ]
     for t in threads:

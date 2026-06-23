@@ -71,7 +71,7 @@ def padplanning_wrapper(buoy_positions, x, state):
     # Flipped coordinates and hardcoded constant speed = 1
     final_waypoints = []
     for lon_wp, lat_wp in slalom_waypoints:
-        final_waypoints.append((lat_wp, lon_wp, 1))
+        final_waypoints.append(((lat_wp, lon_wp), 2))
 
     return final_waypoints
 

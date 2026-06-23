@@ -37,6 +37,7 @@ VIDEO_TOPICS = {
 }
 
 COORDINATE_TOPIC = "detections/coordinates"
+PATH_TOPIC = "navigation/path"
 
 _client: Optional[mqtt.Client] = None
 _client_lock = threading.Lock()
@@ -98,3 +99,36 @@ def publish_detection_coordinates(detections: list[dict]) -> None:
 
     if info.rc != mqtt.MQTT_ERR_SUCCESS:
         print(f"MQTT publish failed: rc={info.rc}")
+
+
+def publish_path(waypoints: list[tuple[float, float]]) -> None:
+    """Publish the planned path to navigation/path.
+ 
+    Each waypoint is a ((latitude, longitude), speed) tuple.  They are
+    serialised as a JSON array of objects so subscribers don't need to
+    know the tuple order:
+ 
+        [
+            {"latitude": 50.9148, "longitude": 2.6892, "speed": 1.5},
+            {"latitude": 50.9150, "longitude": 2.6895, "speed": 2.0},
+            ...
+        ]
+ 
+    QoS 1 and retain=True are used here (unlike video/detection publishes)
+    because the path is mission-critical: a subscriber that connects after
+    the publish still needs the current path, and we want at-least-once
+    delivery to the broker.
+    """
+    payload = json.dumps(
+        [{"latitude": lat, "longitude": lon, "speed": speed}
+         for (lat, lon), speed in waypoints]
+    )
+    client = _ensure_client_started()
+    info = client.publish(
+        PATH_TOPIC,
+        payload=payload,
+        qos=1,
+        retain=True,
+    )
+    if info.rc != mqtt.MQTT_ERR_SUCCESS:
+        print(f"MQTT publish failed for path: rc={info.rc}")
