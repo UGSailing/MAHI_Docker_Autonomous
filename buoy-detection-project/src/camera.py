@@ -97,6 +97,15 @@ model_lock = threading.Lock()
 buoy_list: list[tuple[float, float]] = []
 buoy_list_lock = threading.Lock()
 
+# ---------------------------------------------------------------------------
+# On-demand frame snapshots (Thread-safe cache for external calls)
+# ---------------------------------------------------------------------------
+_latest_snapshots: dict[str, dict[str, np.ndarray | None]] = {
+    "left": {"raw": None, "annotated": None},
+    "right": {"raw": None, "annotated": None},
+}
+_snapshot_lock = threading.Lock()
+
 
 # ---------------------------------------------------------------------------
 # RTSP helpers
@@ -329,7 +338,7 @@ def _process_cam(
 
         # Shift from camera-lens origin to boat centre.
         # Left camera is to port  → add half-separation to move right to centre.
-        # Right camera is to starboard → subtract.
+        # Right camera is to starboard Bourn → subtract.
         if side == "left":
             x += CAMERA_SEPARATION / 2
         else:
@@ -407,11 +416,41 @@ def worker_thread(box: LatestFrameBox, side: str) -> None:
 
         # Encode and publish the annotated preview frame.
         annotated = result.plot()
+
+        # Update the thread-safe global snapshot cache
+        with _snapshot_lock:
+            _latest_snapshots[side]["raw"] = frame.copy()
+            _latest_snapshots[side]["annotated"] = annotated.copy()
+
         annotated = cv2.resize(annotated, (640, 360))
         ok, jpg = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 40])
         if not ok:
             continue
         post_mqtt.publish_video_frame(side, jpg.tobytes())
+
+
+# ---------------------------------------------------------------------------
+# Public API for sporadic frame retrieval
+# ---------------------------------------------------------------------------
+
+def get_current_frame(side: str, annotated: bool = True) -> np.ndarray | None:
+    """
+    Returns the most recent frame processed by the specified camera side ('left' or 'right').
+    Safe to call sporadically from external loops, APIs, or UI endpoints.
+    
+    :param side: 'left' or 'right'
+    :param annotated: If True, returns the frame drawn with YOLO bounding boxes.
+                      If False, returns the unaltered raw frame.
+    :return: A copy of the frame as a numpy array, or None if no frame has run through yet.
+    """
+    if side not in ("left", "right"):
+        raise ValueError("side must be 'left' or 'right'")
+        
+    with _snapshot_lock:
+        frame_type = "annotated" if annotated else "raw"
+        frame = _latest_snapshots[side][frame_type]
+        # Return a copy so the calling thread can manipulate it safely
+        return frame.copy() if frame is not None else None
 
 
 # ---------------------------------------------------------------------------
