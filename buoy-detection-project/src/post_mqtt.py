@@ -1,11 +1,11 @@
 """
-set_mqtt.py
+post_mqtt.py
 
 Background MQTT publisher used by the detection pipeline. Mirrors the
 lazy-singleton-client pattern in get_mqtt.py, but for publishing instead of
 subscribing:
 
-    from set_mqtt import publish_video_frame, publish_detection_coordinates
+    from post_mqtt import publish_video_frame, publish_detection_coordinates
 
     publish_video_frame("left", jpg_bytes)
     publish_detection_coordinates("left", latitude=51.05, longitude=3.72)
