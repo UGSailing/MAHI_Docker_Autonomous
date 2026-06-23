@@ -503,6 +503,10 @@ def process_pair(
             })
             committed_positions.add(pos)
 
+    # Publish all detections for this pair-frame in a single call.
+    if detections:
+        post_mqtt.publish_detection_coordinates(detections)
+
     return updated, buoy_positions
 
 
@@ -558,16 +562,6 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
             updated, _ = process_pair(
                 boat_pos, buoy_list, left_frame, right_frame
             )
-            if updated:
-                # Publish latest position of every buoy in the shared list.
-                post_mqtt.publish_detection_coordinates([
-                    {"latitude": history[-1][0], "longitude": history[-1][1]}
-                    for history in buoy_list
-                    if history
-                ])
-            if updated:
-                # Publish the full history so the dashboard map stays in sync.
-                post_mqtt.publish_buoy_positions(buoy_list)
 
         # Encode and publish annotated preview frames for both sides.
         # Re-run inference just for annotation (results are lightweight to reuse
@@ -635,8 +629,6 @@ if __name__ == "__main__":
     _post_mqtt_stub.publish_detection_coordinates = lambda detections: print(
         f"  [post_mqtt] publish_detection_coordinates: {detections}"
     )
-    _post_mqtt_stub.publish_buoy_update_flag = lambda flag: print(
-        f"  [post_mqtt] publish_buoy_update_flag: {flag}"
     )
     _post_mqtt_stub.publish_video_frame = lambda side, data: None
     sys.modules["post_mqtt"] = _post_mqtt_stub
