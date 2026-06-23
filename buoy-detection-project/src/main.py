@@ -90,9 +90,13 @@ def main() -> None:
             boat_pos["latitude"], buoy0_lat,
             boat_pos["longitude"], buoy0_lon,
         )
+        print(dist)
         if dist < 1:
+            print("distance 1 smaller")
             break
         time.sleep(0.5)
+
+    print("DETECT_1")
 
     with camera.buoy_list_lock:
         waypoints = padplanning_wrapper(buoy_positions, x=2, state='DETECT_1')
@@ -116,6 +120,8 @@ def main() -> None:
         if dist < 1:
             break
         time.sleep(0.5)
+
+    print("DETECT_2")
 
     with camera.buoy_list_lock:
         waypoints = padplanning_wrapper(buoy_positions, x=2, state='DETECT_2')
