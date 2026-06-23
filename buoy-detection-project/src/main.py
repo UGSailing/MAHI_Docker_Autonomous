@@ -10,6 +10,7 @@ import time
 
 import camera
 import get_mqtt
+import post_mqtt
 from padplanning import padplanning_8
 from padplanning_slalom import padplanning_wrapper
 from autopilot import sail_path
@@ -73,7 +74,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     waypoints = padplanning_wrapper(buoy_positions, x=2, state='START')
     # sail_path(waypoints)
-    publish_path(waypoints)
+    post_mqtt.publish_path(waypoints)
 
     # ------------------------------------------------------------------
     # 5. Wait until the boat is within 7 m of buoy 0's a-priori position.
@@ -96,7 +97,7 @@ def main() -> None:
     with camera.buoy_list_lock:
         waypoints = padplanning_wrapper(buoy_positions, x=2, state='DETECT_1')
     # sail_path(waypoints)
-    publish_path(waypoints)
+    post_mqtt.publish_path(waypoints)
 
     # ------------------------------------------------------------------
     # 6. Wait until the boat is within 7 m of buoy 1's a-priori position.
@@ -119,7 +120,7 @@ def main() -> None:
     with camera.buoy_list_lock:
         waypoints = padplanning_wrapper(buoy_positions, x=2, state='DETECT_2')
     # sail_path(waypoints) # TODO uncomment
-    publish_path(waypoints)
+    post_mqtt.publish_path(waypoints)
 
 
 if __name__ == "__main__":
