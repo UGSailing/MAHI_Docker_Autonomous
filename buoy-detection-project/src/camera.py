@@ -629,7 +629,6 @@ if __name__ == "__main__":
     _post_mqtt_stub.publish_detection_coordinates = lambda detections: print(
         f"  [post_mqtt] publish_detection_coordinates: {detections}"
     )
-    )
     _post_mqtt_stub.publish_video_frame = lambda side, data: None
     sys.modules["post_mqtt"] = _post_mqtt_stub
 
