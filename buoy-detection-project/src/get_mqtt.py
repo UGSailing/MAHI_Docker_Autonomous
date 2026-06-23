@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import os
 import struct
 import threading
@@ -35,13 +36,13 @@ MQTT_USER = os.getenv("MQTT_USER")  # optional
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")  # optional
 MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "get-mqtt-client")
 
-GNSS_LEFT_TOPIC = "sense-3C6D66019257/gnss/Left/pvt"
+GNSS_LEFT_TOPIC  = "sense-3C6D66019257/gnss/Left/pvt"
 GNSS_RIGHT_TOPIC = "sense-3C6D66019257/gnss/Right/pvt"
-HEADING_TOPIC = "sense-3C6D66019257/nmea/Left"
-CAN_TOPIC = "can/ugent/tx"
+HEADING_TOPIC    = "sense-3C6D66019257/nmea/Left"
+CAN_TOPIC        = "can/ugent/tx"
 
 ECU_HEARTBEAT_CAN_ID = 0x11
-SET_ANGLE_CAN_ID = 0x204
+SET_ANGLE_CAN_ID     = 0x204
 
 
 class BoatPosition(TypedDict):
@@ -69,13 +70,13 @@ class _State:
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
-        self.gnss_fix_left: Optional[dict] = None
+        self.gnss_fix_left: Optional[dict]  = None
         self.gnss_fix_right: Optional[dict] = None
-        self.heading: Optional[float] = None
-        self.rpm: Optional[float] = None
-        self.angle: Optional[float] = None
-        self.temperature: Optional[float] = None
-        self.humidity: Optional[float] = None
+        self.heading: Optional[float]        = None
+        self.rpm: Optional[float]            = None
+        self.angle: Optional[float]          = None
+        self.temperature: Optional[float]    = None
+        self.humidity: Optional[float]       = None
 
 
 _state = _State()
@@ -95,8 +96,8 @@ def _parse_ecu_heartbeat(data: bytes) -> tuple[Optional[float], Optional[float],
         return None, None, None
     # byte 1: temperature offset by -50, byte 2: humidity, bytes 3-4: rpm (int16 LE)
     temperature = data[1] - 50
-    humidity = data[2]
-    rpm = struct.unpack_from("<h", data, 3)[0]
+    humidity    = data[2]
+    rpm         = struct.unpack_from("<h", data, 3)[0]
     return temperature, humidity, rpm
 
 
@@ -107,32 +108,37 @@ def _parse_set_angle(data: bytes) -> Optional[float]:
     return (raw_angle / 1000) * 45
 
 
-def _parse_gphdt_heading(payload: str) -> Optional[float]:
-    """Parse a $GPHDT NMEA sentence, e.g. '$GPHDT,269.21,T*0B', and return
-    the true heading in degrees. The heading bus can carry other sentence
-    types too, so this only returns a value when the line is actually a
-    GPHDT sentence; anything else is ignored.
+def _parse_hdt_heading(payload: str) -> Optional[float]:
+    """Parse any $xxHDT NMEA sentence ($GPHDT, $GNHDT, $GLHDT, …) and
+    return the true heading in degrees.
+
+    Matches the React dashboard's App.tsx logic exactly:
+        payload.split('\\n').find(l => l.includes('HDT'))
+    — i.e. any line containing 'HDT', no checksum validation.
+    Skipping checksum validation avoids silently dropping valid headings
+    due to whitespace or encoding artifacts in the payload.
     """
     for line in payload.splitlines():
         line = line.strip()
-        if not line.startswith("$GPHDT"):
+        if 'HDT' not in line:
             continue
-
-        # Strip checksum suffix ("*0B") if present, then split fields.
+        # Strip optional checksum suffix ("*0B") before splitting.
         sentence = line.split("*", 1)[0]
-        fields = sentence.split(",")
-        # fields: ['$GPHDT', '<heading>', 'T']
+        fields   = sentence.split(",")
+        # Expected: ['$xxHDT', '<heading>', 'T']
         if len(fields) < 2:
             continue
         try:
-            return float(fields[1])
+            heading = float(fields[1])
+            if math.isfinite(heading):
+                return heading
         except ValueError:
             continue
     return None
 
 
 def _on_message(_client: mqtt.Client, _userdata, message: mqtt.MQTTMessage) -> None:
-    if message.topic == GNSS_LEFT_TOPIC or message.topic == GNSS_RIGHT_TOPIC:
+    if message.topic in (GNSS_LEFT_TOPIC, GNSS_RIGHT_TOPIC):
         try:
             fix = json.loads(message.payload.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
@@ -149,7 +155,7 @@ def _on_message(_client: mqtt.Client, _userdata, message: mqtt.MQTTMessage) -> N
             payload = message.payload.decode("ascii", errors="ignore")
         except UnicodeDecodeError:
             return
-        heading = _parse_gphdt_heading(payload)
+        heading = _parse_hdt_heading(payload)
         if heading is not None:
             with _state.lock:
                 _state.heading = heading
@@ -161,7 +167,7 @@ def _on_message(_client: mqtt.Client, _userdata, message: mqtt.MQTTMessage) -> N
         except (json.JSONDecodeError, UnicodeDecodeError):
             return
 
-        can_id = frame.get("can_id")
+        can_id   = frame.get("can_id")
         data_b64 = frame.get("data")
         if can_id is None or not isinstance(data_b64, str):
             return
@@ -202,10 +208,10 @@ def _ensure_client_started() -> None:
         client.on_message = _on_message
 
         def on_connect(c: mqtt.Client, _userdata, _flags, _rc) -> None:
-            c.subscribe(GNSS_LEFT_TOPIC, qos=0)
+            c.subscribe(GNSS_LEFT_TOPIC,  qos=0)
             c.subscribe(GNSS_RIGHT_TOPIC, qos=0)
-            c.subscribe(HEADING_TOPIC, qos=0)
-            c.subscribe(CAN_TOPIC, qos=0)
+            c.subscribe(HEADING_TOPIC,    qos=0)
+            c.subscribe(CAN_TOPIC,        qos=0)
 
         client.on_connect = on_connect
         client.reconnect_delay_set(min_delay=1, max_delay=5)
@@ -218,8 +224,8 @@ def _ensure_client_started() -> None:
 def _extract_lat_lon(fix: Optional[dict]) -> Optional[tuple[float, float]]:
     if not fix or not fix.get("FixIsValid"):
         return None
-    lat_lon = (fix.get("Position") or {}).get("LatLon") or {}
-    latitude = lat_lon.get("Latitude")
+    lat_lon   = (fix.get("Position") or {}).get("LatLon") or {}
+    latitude  = lat_lon.get("Latitude")
     longitude = lat_lon.get("Longitude")
     if latitude is None or longitude is None:
         return None
@@ -233,26 +239,24 @@ def get_boat_position() -> Optional[BoatPosition]:
     """
     _ensure_client_started()
     with _state.lock:
-        fix_left = _state.gnss_fix_left
+        fix_left  = _state.gnss_fix_left
         fix_right = _state.gnss_fix_right
-        heading = _state.heading
+        heading   = _state.heading
 
-    lat_lon_left = _extract_lat_lon(fix_left)
+    lat_lon_left  = _extract_lat_lon(fix_left)
     lat_lon_right = _extract_lat_lon(fix_right)
 
     points = [p for p in (lat_lon_left, lat_lon_right) if p is not None]
     if not points:
         return None
 
-    latitude = sum(p[0] for p in points) / len(points)
+    latitude  = sum(p[0] for p in points) / len(points)
     longitude = sum(p[1] for p in points) / len(points)
 
     # Height/accuracy/sat counts: report from whichever fix we used (prefer
     # left, then right) since these aren't meaningfully averaged.
     reference_fix = fix_left if lat_lon_left is not None else fix_right
     lat_lon = (reference_fix.get("Position") or {}).get("LatLon") or {}
-
-    print(heading)
 
     return BoatPosition(
         latitude=latitude,
@@ -270,7 +274,8 @@ def get_boat_velocity() -> Optional[BoatVelocity]:
     """Latest velocity vector and derived forward speed, or None if no fix
     with velocity data has been received yet. Uses the left receiver's fix,
     falling back to the right one, since velocity isn't meaningfully
-    averaged across two antennas."""
+    averaged across two antennas.
+    """
     _ensure_client_started()
     with _state.lock:
         fix = _state.gnss_fix_left or _state.gnss_fix_right
@@ -283,18 +288,16 @@ def get_boat_velocity() -> Optional[BoatVelocity]:
         return None
 
     north = velocity.get("North")
-    east = velocity.get("East")
-    down = velocity.get("Down")
+    east  = velocity.get("East")
+    down  = velocity.get("Down")
     if north is None or east is None:
         return None
-
-    forward_speed = (north**2 + east**2) ** 0.5
 
     return BoatVelocity(
         north=north,
         east=east,
         down=down if down is not None else 0.0,
-        forward_speed=forward_speed,
+        forward_speed=math.hypot(north, east),
     )
 
 
@@ -335,12 +338,12 @@ if __name__ == "__main__":
         while True:
             time.sleep(2)
             print(
-                "position=", get_boat_position(),
-                "velocity=", get_boat_velocity(),
-                "rpm=", get_rpm(),
-                "angle=", get_angle(),
-                "temp=", get_temperature(),
-                "humidity=", get_humidity(),
+                "position=",    get_boat_position(),
+                "velocity=",    get_boat_velocity(),
+                "rpm=",         get_rpm(),
+                "angle=",       get_angle(),
+                "temp=",        get_temperature(),
+                "humidity=",    get_humidity(),
             )
     except KeyboardInterrupt:
         pass
