@@ -252,9 +252,6 @@ def get_boat_position() -> Optional[BoatPosition]:
     reference_fix = fix_left if lat_lon_left is not None else fix_right
     lat_lon = (reference_fix.get("Position") or {}).get("LatLon") or {}
 
-    print("LATITUDE:")
-    print(latitude)
-
     return BoatPosition(
         latitude=latitude,
         longitude=longitude,
