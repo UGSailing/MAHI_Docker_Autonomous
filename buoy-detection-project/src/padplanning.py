@@ -88,7 +88,7 @@ def local_to_latlon(lat0, lon0, bearing_ab_deg, x_local, y_local, speed):
     dlat = north / R_EARTH
     dlon = east / (R_EARTH * math.cos(lat0_rad))
 
-    return lat0 + math.degrees(dlat), lon0 + math.degrees(dlon), speed
+    return (lat0 + math.degrees(dlat), lon0 + math.degrees(dlon)), speed
 
 
 def average_position(positions):
