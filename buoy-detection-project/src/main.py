@@ -50,7 +50,15 @@ def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
     bpx = boat_pos['latitude'] - next_waypoint[0]
     bpy = boat_pos['longitude'] - next_waypoint[1]
 
+    print("bpx")
+    print(bpx)
+    print("bpy")
+    print(bpy)
+
     dot = dx * bpx + dy * bpy
+
+    print("DOT POSITIVE?")
+    print(dot)
 
     return dot > 0
 
