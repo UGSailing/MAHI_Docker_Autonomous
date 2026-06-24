@@ -36,8 +36,11 @@ def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
     Returns False if boat_pos is on the prev_waypoint-side of the perpendicular line through next_waypoint,
     Returns True if boat_pos is past next_waypoint (on the far side).
     
-    Points are (lat, lon) tuples.
+    for prev and next waypoint this is ((lat,lon),speed), boat_pos (lat,lon, ...)
     """
+    prev_waypoint = prev_waypoint[0]
+    next_waypoint = next_waypoint[0]
+    
     dx = next_waypoint[0] - prev_waypoint[0]
     dy = next_waypoint[1] - prev_waypoint[1]
 
