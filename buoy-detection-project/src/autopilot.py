@@ -59,6 +59,7 @@ def _publish_loop(client: mqtt.Client, interval: float) -> None:
             (target_lat, target_lon), value = waypoint
             publish_route(client, [(( target_lat, target_lon), value)], 0)
             post_mqtt.publish_point(waypoint)
+            print(waypoint)
 
         _stop_event.wait(timeout=interval)
 
