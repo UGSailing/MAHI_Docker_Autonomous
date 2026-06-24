@@ -199,6 +199,9 @@ def main() -> None:
 
     while True:
         boat_pos = get_mqtt.get_boat_position()
+        if boat_pos is None:
+            time.sleep(0.5)
+            continue
         if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
             i += 1
             if i < len(waypoints):
