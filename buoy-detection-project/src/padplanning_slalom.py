@@ -146,6 +146,7 @@ def padplanning_slalom(
     # sign = +1: perp-kant eerst (noord als as=oost), -1: andere kant
     side = float(np.dot(boat - b1, perp_u))
     sign = 1 if side >= 0 else -1
+    sign = 1
 
     # ── S-curve helper ────────────────────────────────────────────────────────
     def s_curve(p_from: np.ndarray, p_to: np.ndarray,
