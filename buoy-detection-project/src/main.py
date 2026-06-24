@@ -160,6 +160,9 @@ def main() -> None:
             prev_waypoint = next_waypoint
             next_waypoint = waypoints[i]
             set_waypoint(next_waypoint)
+        else:
+            while True:
+                continue
 
     print("DETECT_1")
 
