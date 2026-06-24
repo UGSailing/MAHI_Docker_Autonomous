@@ -13,7 +13,7 @@ import get_mqtt
 import post_mqtt
 from padplanning import padplanning_8
 from padplanning_slalom import padplanning_wrapper
-from autopilot import sail_path
+# from autopilot import sail_path
 from autopilot import set_waypoint, start_navigation, stop_navigation
 
 
