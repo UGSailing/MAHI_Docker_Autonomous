@@ -47,6 +47,10 @@ def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
     if dx == 0 and dy == 0:
         return True
 
+    print("TEST PRINTS")
+    print(boat_pos)
+    print(next_waypoint)
+
     bpx = boat_pos[0] - next_waypoint[0]
     bpy = boat_pos[1] - next_waypoint[1]
 
