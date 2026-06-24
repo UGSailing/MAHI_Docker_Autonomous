@@ -153,7 +153,7 @@ def padplanning_8(buoy_positions,marge, state):
 
 
     if state == 'START':
-        return points
+        return points[1:]
     elif state == 'DETECT_1':
         return points
     else: # state == 'DETECT_2':

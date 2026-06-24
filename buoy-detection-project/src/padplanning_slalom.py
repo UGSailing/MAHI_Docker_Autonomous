@@ -220,6 +220,10 @@ def padplanning_slalom(
         return dist + 2.0 * diff + 0.5 * i
 
     best_i = min(range(len(waypoints)), key=lambda i: score(i, waypoints[i]))
+
+    # dit was niet zo'n robuste methode => deze cut gebeurt nu in main.py
+    best_i = 0
+
     return [to_lonlat(wp) for wp in waypoints[best_i:]]
 
 

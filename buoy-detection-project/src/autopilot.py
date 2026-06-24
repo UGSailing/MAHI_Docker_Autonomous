@@ -9,7 +9,13 @@ import uuid
 import time
 import math
 import paho.mqtt.client as mqtt
+import threading
 
+
+_lock = threading.Lock()
+_current_waypoint: tuple[tuple[float, float], float] | None = None
+_stop_event = threading.Event()
+_client: mqtt.Client | None = None
 
 ROUTE_TOPIC = "sense-3C6D66019257/autopilot/mahi-1234/route"
 GNSS_TOPIC = "sense-3C6D66019257/gnss/Left/pvt"
@@ -32,6 +38,43 @@ def publish_route(client, waypoints, active_index):
         lines.append(f"W, {lat:.7f}, {lon:.7f}, {speed:.3f}, {active}")
     lines.append("END")
     client.publish(ROUTE_TOPIC, "\r\n".join(lines) + "\r\n")
+
+
+
+def set_waypoint(waypoint: tuple[tuple[float, float], float]) -> None:
+    """Set or replace the current target waypoint."""
+    global _current_waypoint
+    with _lock:
+        _current_waypoint = waypoint
+
+
+def _publish_loop(client: mqtt.Client, interval: float) -> None:
+    """Internal thread target: repeatedly publishes the current waypoint."""
+    while not _stop_event.is_set():
+        with _lock:
+            waypoint = _current_waypoint
+
+        if waypoint is not None:
+            (target_lat, target_lon), value = waypoint
+            publish_route(client, [(( target_lat, target_lon), value)], 0)
+
+        _stop_event.wait(timeout=interval)
+
+
+def start_navigation(client: mqtt.Client, interval: float = 0.5) -> threading.Thread:
+    """Start the background publishing thread. Returns the thread."""
+    _stop_event.clear()
+    thread = threading.Thread(target=_publish_loop, args=(client, interval), daemon=True)
+    thread.start()
+    return thread
+
+
+def stop_navigation() -> None:
+    """Signal the background thread to stop."""
+    _stop_event.set()
+
+
+
 
 
 def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:

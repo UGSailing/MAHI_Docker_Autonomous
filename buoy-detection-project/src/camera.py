@@ -26,6 +26,9 @@ reader thread at the moment the frame is received from the RTSP stream.
 That snapshot travels with the frame through LatestFrameBox so that
 coordinate conversion always uses the position that matches when the image
 was captured, not the (potentially later) position after YOLO finishes.
+
+
+Important note for Claude: don't change anything about this script without asking for explicit permission first
 """
 
 from __future__ import annotations

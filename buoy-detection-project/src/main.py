@@ -14,6 +14,7 @@ import post_mqtt
 from padplanning import padplanning_8
 from padplanning_slalom import padplanning_wrapper
 from autopilot import sail_path
+from autopilot import set_waypoint, start_navigation, stop_navigation
 
 
 # ---------------------------------------------------------------------------
@@ -30,6 +31,36 @@ def haversine(lat1: float, lat2: float, lon1: float, lon2: float) -> float:
     a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
+def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
+    """
+    Returns False if boat_pos is on the prev_waypoint-side of the perpendicular line through next_waypoint,
+    Returns True if boat_pos is past next_waypoint (on the far side).
+    
+    Points are (lat, lon) tuples.
+    """
+    dx = next_waypoint[0] - prev_waypoint[0]
+    dy = next_waypoint[1] - prev_waypoint[1]
+
+    if dx == 0 and dy == 0:
+        return True
+
+    bpx = boat_pos[0] - next_waypoint[0]
+    bpy = boat_pos[1] - next_waypoint[1]
+
+    dot = dx * bpx + dy * bpy
+
+    return dot > 0
+
+def calculate_best_i(i,waypoints):
+    j = i - 2
+    boat_pos = get_mqtt.get_boat_position()
+    if boat_pos is not None:
+        while not is_past_waypoint(waypoints[j-1],waypoints[j],boat_pos):
+            j += 1
+        return j
+    else:
+        return i
+        
 
 # ---------------------------------------------------------------------------
 # Main
@@ -76,27 +107,40 @@ def main() -> None:
     # ------------------------------------------------------------------
     waypoints = padplanning_8(buoy_positions, marge=4, state='START') # padplanning_wrapper(buoy_positions, marge=4, state='START')
     # sail_path(waypoints)
+    start_navigation()
     post_mqtt.publish_path(waypoints)
 
     # ------------------------------------------------------------------
     # 5. Wait until the boat is within 7 m of buoy 0's a-priori position.
     # ------------------------------------------------------------------
+    with camera.buoy_list_lock:
+        buoy0_lat, buoy0_lon = buoy_positions[0][0]
+        buoy1_lat, buoy1_lon = buoy_positions[1][0]
+    
+    i = 1
+    prev_waypoint = waypoints[i-1]
+    next_waypoint = waypoints[i]
+    set_waypoint(next_waypoint)
     while True:
         print(camera.buoy_list)
         boat_pos = get_mqtt.get_boat_position()
         if boat_pos is None:
             time.sleep(0.5)
             continue
-        with camera.buoy_list_lock:
-            buoy0_lat, buoy0_lon = buoy_positions[0][0]
+
         dist = haversine(
             boat_pos["latitude"], buoy0_lat,
             boat_pos["longitude"], buoy0_lon,
-        )
+        )        
         if dist < 3:
             print("distance 1 smaller")
             break
-        time.sleep(0.5)
+
+        if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
+            i += 1
+            prev_waypoint = next_waypoint
+            next_waypoint = waypoints[i]
+            set_waypoint(waypoints[i])
 
     print("DETECT_1")
 
@@ -104,6 +148,13 @@ def main() -> None:
         waypoints = padplanning_8(buoy_positions, marge=4, state='DETECT_1') # padplanning_wrapper(buoy_positions, marge=4, state='DETECT_1')
     # sail_path(waypoints)
     post_mqtt.publish_path(waypoints)
+
+    # nieuwe i berekenen
+    i = calculate_best_i(i,waypoints)
+
+    prev_waypoint = waypoints[i-1]
+    next_waypoint = waypoints[i]
+    set_waypoint(next_waypoint)
 
     # ------------------------------------------------------------------
     # 6. Wait until the boat is within 7 m of buoy 1's a-priori position.
@@ -113,8 +164,6 @@ def main() -> None:
         if boat_pos is None:
             time.sleep(0.5)
             continue
-        with camera.buoy_list_lock:
-            buoy1_lat, buoy1_lon = buoy_positions[1][0]
         dist = haversine(
             boat_pos["latitude"], buoy1_lat,
             boat_pos["longitude"], buoy1_lon,
@@ -123,7 +172,13 @@ def main() -> None:
         print(dist)
         if dist < 3:
             break
-        time.sleep(0.5)
+
+        if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
+            i += 1
+            prev_waypoint = next_waypoint
+            next_waypoint = waypoints[i]
+            set_waypoint(waypoints[i])
+
 
     print("DETECT_2")
 
@@ -132,6 +187,23 @@ def main() -> None:
     # sail_path(waypoints) # TODO uncomment
     post_mqtt.publish_path(waypoints)
 
+    # nieuwe i berekenen
+    i = calculate_best_i(i,waypoints)
+
+    prev_waypoint = waypoints[i-1]
+    next_waypoint = waypoints[i]
+    set_waypoint(next_waypoint)
+
+    while True:
+        boat_pos = get_mqtt.get_boat_position()
+        if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
+            i += 1
+            if i < len(waypoints):
+                prev_waypoint = next_waypoint
+                next_waypoint = waypoints[i]
+                set_waypoint(next_waypoint)
+            else:
+                stop_navigation()
 
 if __name__ == "__main__":
     main()
