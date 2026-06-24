@@ -128,7 +128,7 @@ _snapshot_lock = threading.Lock()
 
 def build_rtsp_url(host: str, user: str, password: str, path: str) -> str:
     """Return a fully-encoded RTSP URL."""
-    user_enc = urllib.parse.quote(user, safe="")MATCH
+    user_enc = urllib.parse.quote(user, safe="")
     pass_enc = urllib.parse.quote(password, safe="")
     return f"rtsp://{user_enc}:{pass_enc}@{host}{path}"
 

@@ -82,6 +82,7 @@ def main() -> None:
     # 5. Wait until the boat is within 7 m of buoy 0's a-priori position.
     # ------------------------------------------------------------------
     while True:
+        print(camera.buoy_list)
         boat_pos = get_mqtt.get_boat_position()
         if boat_pos is None:
             time.sleep(0.5)
@@ -92,8 +93,6 @@ def main() -> None:
             boat_pos["latitude"], buoy0_lat,
             boat_pos["longitude"], buoy0_lon,
         )
-        print("BOEI 1")
-        print(dist)
         if dist < 3:
             print("distance 1 smaller")
             break
