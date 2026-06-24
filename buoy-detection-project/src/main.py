@@ -125,7 +125,6 @@ def main() -> None:
     next_waypoint = waypoints[i]
     set_waypoint(next_waypoint)
     while True:
-        print(camera.buoy_list)
         boat_pos = get_mqtt.get_boat_position()
         if boat_pos is None:
             time.sleep(0.5)

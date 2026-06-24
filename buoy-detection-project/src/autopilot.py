@@ -78,6 +78,7 @@ def start_navigation(interval: float = 0.5) -> threading.Thread:
 
     thread = threading.Thread(target=_publish_loop, args=(_client, interval), daemon=True)
     thread.start()
+    print("THREAD RUNNING")
     return thread
 
 
