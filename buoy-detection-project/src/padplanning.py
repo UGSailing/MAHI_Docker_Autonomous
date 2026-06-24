@@ -152,10 +152,6 @@ def padplanning_8(buoy_positions,marge, state):
 
 
 
-    labels = ["A_top", "B_bottom", "B_outward", "B_top", "A_bottom", "A_outward"]
-    for label, (lat, lon, speed) in zip(labels, points):
-        print(f"{label:10s} -> lat={lat:.7f}, lon={lon:.7f}, speed:{speed}")
-
     if state == 'START':
         return points
     elif state == 'DETECT_1':
