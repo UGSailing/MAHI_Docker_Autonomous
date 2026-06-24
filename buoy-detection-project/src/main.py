@@ -40,16 +40,9 @@ def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
     """
     prev_waypoint = prev_waypoint[0]
     next_waypoint = next_waypoint[0]
-
-    print("PREV, NEXT WAYPOINTS")
-    print(prev_waypoint)
-    print(next_waypoint)
     
     dx = next_waypoint[0] - prev_waypoint[0]
     dy = next_waypoint[1] - prev_waypoint[1]
-
-    print("dx, dy")
-    print(dx, dy)
 
     if dx == 0 and dy == 0:
         return True
@@ -57,15 +50,7 @@ def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
     bpx = boat_pos['latitude'] - next_waypoint[0]
     bpy = boat_pos['longitude'] - next_waypoint[1]
 
-    print("bpx")
-    print(bpx)
-    print("bpy")
-    print(bpy)
-
     dot = dx * bpx + dy * bpy
-
-    print("DOT POSITIVE?")
-    print(dot)
 
     return dot > 0
 
@@ -160,10 +145,7 @@ def main() -> None:
             prev_waypoint = next_waypoint
             next_waypoint = waypoints[i]
             set_waypoint(next_waypoint)
-        else:
-            while True:
-                continue
-
+            
     print("DETECT_1")
 
     with camera.buoy_list_lock:
