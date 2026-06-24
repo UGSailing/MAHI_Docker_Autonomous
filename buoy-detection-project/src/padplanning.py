@@ -162,18 +162,3 @@ def padplanning_8(buoy_positions,marge, state):
         return points
     else: # state == 'DETECT_2':
         return points[1:]
-
-
-
-
-positions_a = [
-    (50.914790, 2.689216),
-    (50.91474555038893, 2.6891506003136882)
-]
-positions_b = [
-    (50.914787099097566, 2.6894127960849725),
-    (50.9148243025576, 2.689497285669368)
-]
-x = 5
-
-print(padplanning_8([positions_a,positions_b],5))
