@@ -145,17 +145,24 @@ def compute_six_points(positions_a, positions_b, x):
     return results, d, bearing_ab
 
 
-def padplanning_8(buoy_positions,x):
+def padplanning_8(buoy_positions,marge, state):
     positions_a, positions_b = buoy_positions
 
-    points, d, bearing = compute_six_points(positions_a, positions_b, x)
+    points, d, bearing = compute_six_points(positions_a, positions_b, marge)
+
 
 
     labels = ["A_top", "B_bottom", "B_outward", "B_top", "A_bottom", "A_outward"]
     for label, (lat, lon, speed) in zip(labels, points):
         print(f"{label:10s} -> lat={lat:.7f}, lon={lon:.7f}, speed:{speed}")
 
-    return points
+    if state == 'START':
+        return points
+    elif state == 'DETECT_1':
+        return points
+    else: # state == 'DETECT_2':
+        return points[1:]
+
 
 
 

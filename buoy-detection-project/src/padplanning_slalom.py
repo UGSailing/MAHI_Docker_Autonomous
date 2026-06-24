@@ -11,7 +11,7 @@ import numpy as np
 
 Position = Tuple[float, float]   # (longitude, latitude)
 
-def padplanning_wrapper(buoy_positions, x, state):
+def padplanning_wrapper(buoy_positions, marge, state):
     """
     Wrapper to correctly translate inputs/outputs between the old architecture
     and the new padplanning_slalom function.
@@ -61,7 +61,7 @@ def padplanning_wrapper(buoy_positions, x, state):
     heading = boat_position['heading']
 
     # Safely compute offset entirely in meters
-    slalom_offset = max(buoys_max_dist) + x
+    slalom_offset = max(buoys_max_dist) + marge
 
     # Generate the slalom path waypoints: list of (lon, lat)
     slalom_waypoints = padplanning_slalom(

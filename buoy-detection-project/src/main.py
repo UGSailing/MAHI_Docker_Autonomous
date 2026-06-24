@@ -74,7 +74,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 4. Initial path plan and sail.
     # ------------------------------------------------------------------
-    waypoints = padplanning_wrapper(buoy_positions, x=4, state='START')
+    waypoints = padplanning_8(buoy_positions, marge=4, state='START') # padplanning_wrapper(buoy_positions, marge=4, state='START')
     # sail_path(waypoints)
     post_mqtt.publish_path(waypoints)
 
@@ -102,7 +102,7 @@ def main() -> None:
     print("DETECT_1")
 
     with camera.buoy_list_lock:
-        waypoints = padplanning_wrapper(buoy_positions, x=4, state='DETECT_1')
+        waypoints = padplanning_8(buoy_positions, marge=4, state='DETECT_1') # padplanning_wrapper(buoy_positions, marge=4, state='DETECT_1')
     # sail_path(waypoints)
     post_mqtt.publish_path(waypoints)
 
@@ -129,7 +129,7 @@ def main() -> None:
     print("DETECT_2")
 
     with camera.buoy_list_lock:
-        waypoints = padplanning_wrapper(buoy_positions, x=4, state='DETECT_2')
+        waypoints = padplanning_8(buoy_positions, marge=4, state='DETECT_2')#padplanning_wrapper(buoy_positions, marge=4, state='DETECT_2')
     # sail_path(waypoints) # TODO uncomment
     post_mqtt.publish_path(waypoints)
 
