@@ -44,9 +44,11 @@ def main() -> None:
     with camera.buoy_list_lock:
         camera.buoy_list.clear()
         camera.buoy_list.extend([
-            [(51.09801380840991, 2.575587604490833)],   # buoy 0 — replace with real a-priori GPS coords
-            [(51.09809826279077, 2.57554394128149)],   # buoy 1 — replace with real a-priori GPS coords
+            [(51.09791054436643, 2.5757225574010643)],   # buoy 0 — replace with real a-priori GPS coords
+            [(51.09810434631201, 2.575538417216423)],   # buoy 1 — replace with real a-priori GPS coords
         ])
+
+        
 
     # ------------------------------------------------------------------
     # 2. Start the camera pipeline in a background thread so it doesn't

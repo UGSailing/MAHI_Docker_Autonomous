@@ -86,7 +86,7 @@ ANGLE_OFFSET_RIGHT = math.radians(float(os.getenv("ANGLE_OFFSET_RIGHT", "0")))
 
 # How close (metres, in boat-local XY) a new detection must be to an
 # existing known buoy to be considered the same object.
-BUOY_MATCH_DISTANCE = float(os.getenv("BUOY_MATCH_DISTANCE", "50.0"))
+BUOY_MATCH_DISTANCE = float(os.getenv("BUOY_MATCH_DISTANCE", "1.0"))
 
 # ---------------------------------------------------------------------------
 # YOLO model (shared across both worker threads, protected by a lock)
@@ -512,13 +512,12 @@ def process_pair(
             updated = True
             committed_positions.add(pos)
 
-    # Always publish the full buoy list (latest position per buoy) so the
-    # dashboard stays in sync — including on the very first call so seed
-    # positions are immediately visible even before any detection lands.
+    # Always publish the full history of every buoy so the dashboard
+    # stays in sync — all positions, all buoys, in one message.
     post_mqtt.publish_detection_coordinates([
-        {"latitude": history[-1][0], "longitude": history[-1][1]}
-        for history in buoy_positions
-        if history
+        {"buoy": i, "latitude": lat, "longitude": lon}
+        for i, history in enumerate(buoy_positions)
+        for lat, lon in history
     ])
 
     return updated, buoy_positions
@@ -579,7 +578,7 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
             )
             if updated:
                 # Publish the full history so the dashboard map stays in sync.
-                post_mqtt.publish_detection_coordinates(buoy_list)
+                post_mqtt.publish_buoy_positions(buoy_list)
 
         # Encode and publish annotated preview frames for both sides.
         # Re-run inference just for annotation (results are lightweight to reuse
