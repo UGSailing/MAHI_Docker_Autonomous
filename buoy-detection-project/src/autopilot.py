@@ -54,6 +54,8 @@ def _publish_loop(client: mqtt.Client, interval: float) -> None:
         with _lock:
             waypoint = _current_waypoint
 
+        print(waypoint)
+        print("LOOP")
         if waypoint is not None:
             (target_lat, target_lon), value = waypoint
             publish_route(client, [(( target_lat, target_lon), value)], 0)
