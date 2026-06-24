@@ -101,6 +101,21 @@ def publish_detection_coordinates(detections: list[dict]) -> None:
         print(f"MQTT publish failed: rc={info.rc}")
 
 
+def publish_point(waypoint) -> None:
+    payload = json.dumps(
+        {"latitude": waypoint[0][0], "longitude": waypoint[0][1], "speed": waypoint[1]}
+    )
+    client = _ensure_client_started()
+    info = client.publish(
+        "navigation/current",
+        payload=payload,
+        qos=1,
+        retain=True,
+    )
+    if info.rc != mqtt.MQTT_ERR_SUCCESS:
+        print(f"MQTT publish failed for path: rc={info.rc}")
+
+
 def publish_path(waypoints: list[tuple[float, float]]) -> None:
     """Publish the planned path to navigation/path.
  

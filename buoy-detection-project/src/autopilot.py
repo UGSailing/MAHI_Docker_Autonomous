@@ -57,6 +57,7 @@ def _publish_loop(client: mqtt.Client, interval: float) -> None:
         if waypoint is not None:
             (target_lat, target_lon), value = waypoint
             publish_route(client, [(( target_lat, target_lon), value)], 0)
+            post_mqtt.publish_point(waypoint)
 
         _stop_event.wait(timeout=interval)
 
@@ -77,59 +78,59 @@ def stop_navigation() -> None:
 
 
 
-def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
-    position = {"lat": None, "lon": None}
+# def sail_path(waypoints: list[tuple[tuple[float, float], float]]) -> None:
+#     position = {"lat": None, "lon": None}
 
-    def on_message(client, userdata, msg):
-        try:
-            fix = json.loads(msg.payload.decode())
-            if not fix.get("FixIsValid"):
-                return
-            lat_lon = (fix.get("Position") or {}).get("LatLon") or {}
-            lat = lat_lon.get("Latitude")
-            lon = lat_lon.get("Longitude")
-            if lat is not None and lon is not None:
-                position["lat"] = lat
-                position["lon"] = lon
-        except (json.JSONDecodeError, KeyError):
-            pass
+#     def on_message(client, userdata, msg):
+#         try:
+#             fix = json.loads(msg.payload.decode())
+#             if not fix.get("FixIsValid"):
+#                 return
+#             lat_lon = (fix.get("Position") or {}).get("LatLon") or {}
+#             lat = lat_lon.get("Latitude")
+#             lon = lat_lon.get("Longitude")
+#             if lat is not None and lon is not None:
+#                 position["lat"] = lat
+#                 position["lon"] = lon
+#         except (json.JSONDecodeError, KeyError):
+#             pass
 
-    client = mqtt.Client()
-    client.on_message = on_message
-    client.connect("172.17.0.1", 1883)
-    client.subscribe(GNSS_TOPIC)
+#     client = mqtt.Client()
+#     client.on_message = on_message
+#     client.connect("172.17.0.1", 1883)
+#     client.subscribe(GNSS_TOPIC)
 
-    # Take control
-    client.publish("external/command/button", json.dumps({
-        "UUID": uuid.uuid4().hex,
-        "action": "take_cmd"
-    }))
-    client.loop_start()
-    time.sleep(2)
+#     # Take control
+#     client.publish("external/command/button", json.dumps({
+#         "UUID": uuid.uuid4().hex,
+#         "action": "take_cmd"
+#     }))
+#     client.loop_start()
+#     time.sleep(2)
 
-    for active_index, ((target_lat, target_lon), _) in enumerate(waypoints):
-        publish_route(client, waypoints, active_index)
-        print(f"Heading to waypoint {active_index}: ({target_lat}, {target_lon})")
+#     for active_index, ((target_lat, target_lon), _) in enumerate(waypoints):
+#         publish_route(client, waypoints, active_index)
+#         print(f"Heading to waypoint {active_index}: ({target_lat}, {target_lon})")
 
-        while True:
-            time.sleep(0.5)
-            publish_route(client, waypoints, active_index)
-            if position["lat"] is not None:
-                dist = haversine(position["lat"], position["lon"], target_lat, target_lon)
-                print(f"Distance to waypoint {active_index}: {dist:.1f}m")
-                if dist < ARRIVAL_RADIUS_M:
-                    print(f"Reached waypoint {active_index}")
-                    break
-            else:
-                print("Waiting for GPS fix...")
+#         while True:
+#             time.sleep(0.5)
+#             publish_route(client, waypoints, active_index)
+#             if position["lat"] is not None:
+#                 dist = haversine(position["lat"], position["lon"], target_lat, target_lon)
+#                 print(f"Distance to waypoint {active_index}: {dist:.1f}m")
+#                 if dist < ARRIVAL_RADIUS_M:
+#                     print(f"Reached waypoint {active_index}")
+#                     break
+#             else:
+#                 print("Waiting for GPS fix...")
 
-    print("All waypoints reached.")
-    client.loop_stop()
-    client.disconnect()
+#     print("All waypoints reached.")
+#     client.loop_stop()
+#     client.disconnect()
 
 
-if __name__ == "__main__":
-    sail_path([
-        ((51.14338696558262, 2.747221672346525), 4.0),
-        ((51.14344030487403, 2.74765152071387), 4.0)
-    ])
+# if __name__ == "__main__":
+#     sail_path([
+#         ((51.14338696558262, 2.747221672346525), 4.0),
+#         ((51.14344030487403, 2.74765152071387), 4.0)
+#     ])
