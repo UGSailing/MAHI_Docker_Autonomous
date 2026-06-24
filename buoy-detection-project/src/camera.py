@@ -60,7 +60,7 @@ LEFT_STREAM_USER      = os.getenv("LEFT_STREAM_USER",      "root")
 LEFT_STREAM_PASSWORD  = os.getenv("LEFT_STREAM_PASSWORD",  "mahi1234")
 LEFT_STREAM_PATH      = os.getenv("LEFT_STREAM_PATH",      "/axis-media/media.amp?camera=1")
 
-MODEL_PATH = os.getenv("MODEL_PATH", "../models/white_buoy_yolo11s.pt")
+MODEL_PATH = os.getenv("MODEL_PATH", "../models/new_buoy_yolo11s.pt")
 
 # ---------------------------------------------------------------------------
 # Camera geometry constants
