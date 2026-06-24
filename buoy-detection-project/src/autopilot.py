@@ -62,19 +62,28 @@ def _publish_loop(client: mqtt.Client, interval: float) -> None:
         _stop_event.wait(timeout=interval)
 
 
-def start_navigation(client: mqtt.Client, interval: float = 0.5) -> threading.Thread:
-    """Start the background publishing thread. Returns the thread."""
+BROKER_HOST = "172.17.0.1"
+BROKER_PORT = 1883
+
+def start_navigation(interval: float = 0.5) -> threading.Thread:
+    global _client
     _stop_event.clear()
-    thread = threading.Thread(target=_publish_loop, args=(client, interval), daemon=True)
+
+    if _client is None:
+        _client = mqtt.Client()
+        _client.connect(BROKER_HOST, BROKER_PORT)
+        _client.loop_start()
+
+    thread = threading.Thread(target=_publish_loop, args=(_client, interval), daemon=True)
     thread.start()
     return thread
 
 
 def stop_navigation() -> None:
-    """Signal the background thread to stop."""
     _stop_event.set()
-
-
+    if _client is not None:
+        _client.loop_stop()
+        _client.disconnect()
 
 
 
