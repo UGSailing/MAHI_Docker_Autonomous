@@ -86,7 +86,7 @@ ANGLE_OFFSET_RIGHT = math.radians(float(os.getenv("ANGLE_OFFSET_RIGHT", "0")))
 
 # How close (metres, in boat-local XY) a new detection must be to an
 # existing known buoy to be considered the same object.
-BUOY_MATCH_DISTANCE = float(os.getenv("BUOY_MATCH_DISTANCE", "1.0"))
+BUOY_MATCH_DISTANCE = float(os.getenv("BUOY_MATCH_DISTANCE", "50.0"))
 
 # ---------------------------------------------------------------------------
 # YOLO model (shared across both worker threads, protected by a lock)
@@ -128,7 +128,7 @@ _snapshot_lock = threading.Lock()
 
 def build_rtsp_url(host: str, user: str, password: str, path: str) -> str:
     """Return a fully-encoded RTSP URL."""
-    user_enc = urllib.parse.quote(user, safe="")
+    user_enc = urllib.parse.quote(user, safe="")MATCH
     pass_enc = urllib.parse.quote(password, safe="")
     return f"rtsp://{user_enc}:{pass_enc}@{host}{path}"
 
