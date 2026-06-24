@@ -52,10 +52,10 @@ def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
     return dot > 0
 
 def calculate_best_i(i,waypoints):
-    j = i - 2
+    j = max(i - 2, 1)
     boat_pos = get_mqtt.get_boat_position()
     if boat_pos is not None:
-        while not is_past_waypoint(waypoints[j-1],waypoints[j],boat_pos):
+        while is_past_waypoint(waypoints[j-1],waypoints[j],boat_pos):
             j += 1
         return j
     else:
@@ -140,7 +140,7 @@ def main() -> None:
             i += 1
             prev_waypoint = next_waypoint
             next_waypoint = waypoints[i]
-            set_waypoint(waypoints[i])
+            set_waypoint(next_waypoint)
 
     print("DETECT_1")
 
