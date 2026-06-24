@@ -40,6 +40,10 @@ def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
     """
     prev_waypoint = prev_waypoint[0]
     next_waypoint = next_waypoint[0]
+
+    print("PREV, NEXT WAYPOINTS")
+    print(prev_waypoint)
+    print(next_waypoint)
     
     dx = next_waypoint[0] - prev_waypoint[0]
     dy = next_waypoint[1] - prev_waypoint[1]
