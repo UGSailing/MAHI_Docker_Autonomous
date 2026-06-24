@@ -44,6 +44,9 @@ def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
     dx = next_waypoint[0] - prev_waypoint[0]
     dy = next_waypoint[1] - prev_waypoint[1]
 
+    print("dx, dy")
+    print(dx, dy)
+
     if dx == 0 and dy == 0:
         return True
 
@@ -147,6 +150,8 @@ def main() -> None:
             break
 
         if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
+            print("i")
+            print(i)
             i += 1
             prev_waypoint = next_waypoint
             next_waypoint = waypoints[i]
