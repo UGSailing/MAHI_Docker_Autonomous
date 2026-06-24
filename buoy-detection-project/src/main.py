@@ -92,8 +92,9 @@ def main() -> None:
             boat_pos["latitude"], buoy0_lat,
             boat_pos["longitude"], buoy0_lon,
         )
+        print("BOEI 1")
         print(dist)
-        if dist < 1:
+        if dist < 3:
             print("distance 1 smaller")
             break
         time.sleep(0.5)
@@ -119,14 +120,16 @@ def main() -> None:
             boat_pos["latitude"], buoy1_lat,
             boat_pos["longitude"], buoy1_lon,
         )
-        if dist < 1:
+        print("BOEI 2")
+        print(dist)
+        if dist < 3:
             break
         time.sleep(0.5)
 
     print("DETECT_2")
 
     with camera.buoy_list_lock:
-        waypoints = padplanning_wrapper(buoy_positions, x=2, state='DETECT_2')
+        waypoints = padplanning_wrapper(buoy_positions, x=4, state='DETECT_2')
     # sail_path(waypoints) # TODO uncomment
     post_mqtt.publish_path(waypoints)
 
