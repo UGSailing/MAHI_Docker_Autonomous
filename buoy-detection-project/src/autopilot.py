@@ -10,6 +10,7 @@ import time
 import math
 import paho.mqtt.client as mqtt
 import threading
+import post_mqtt
 
 
 _lock = threading.Lock()
@@ -54,8 +55,6 @@ def _publish_loop(client: mqtt.Client, interval: float) -> None:
         with _lock:
             waypoint = _current_waypoint
 
-        print(waypoint)
-        print("LOOP")
         if waypoint is not None:
             (target_lat, target_lon), value = waypoint
             publish_route(client, [(( target_lat, target_lon), value)], 0)
@@ -78,7 +77,6 @@ def start_navigation(interval: float = 0.5) -> threading.Thread:
 
     thread = threading.Thread(target=_publish_loop, args=(_client, interval), daemon=True)
     thread.start()
-    print("THREAD RUNNING")
     return thread
 
 
