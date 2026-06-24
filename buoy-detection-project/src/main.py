@@ -210,7 +210,7 @@ def main() -> None:
         print(i)
         if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
             i += 1
-            if i < len(waypoints):
+            if i < len(waypoints)-INDEX_LOOK_AHEAD:
                 prev_waypoint = next_waypoint
                 next_waypoint = waypoints[i]
                 set_waypoint(next_waypoint + INDEX_LOOK_AHEAD)
