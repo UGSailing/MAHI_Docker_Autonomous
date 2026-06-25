@@ -1,7 +1,7 @@
 INDEX_LOOK_AHEAD = 5
 MARGE = 4
 STATE_TRANS_DIST = MARGE * 1.5
-BUOY_MATCH_DISTANCE = MARGE + 1.5
+BUOY_MATCH_DISTANCE = 7 #MARGE + 1.5
 N_ARC_PTS = 12           # waypoints voor de 180° bocht om B2
 N_SLALOM_PTS = 20        # waypoints per slalom-been (S-curve)
 APRIORI_BUOYLIST = [
