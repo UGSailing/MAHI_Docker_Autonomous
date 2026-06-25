@@ -152,9 +152,9 @@ def is_past_waypoint(
     buoy_x = re * be_buoy + rn * bn_buoy   # positive = buoy is RIGHT of path
 
     if buoy_x > 0:
-        tilt_signed = -abs(tilt)   # buoy right → tilt left
+        tilt_signed = +abs(tilt)   # buoy right → tilt left
     else:
-        tilt_signed = +abs(tilt)   # buoy left (or ahead) → tilt right
+        tilt_signed = -abs(tilt)   # buoy left (or ahead) → tilt right
 
     # ------------------------------------------------------------------
     # 3. Publish the cross line for visualisation / debugging
