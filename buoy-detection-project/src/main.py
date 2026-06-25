@@ -210,8 +210,6 @@ def main() -> None:
         if boat_pos is None:
             time.sleep(0.5)
             continue
-        print("i")
-        print(i)
         if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
             i += 1
             if i < len(waypoints)-INDEX_LOOK_AHEAD:
