@@ -9,4 +9,4 @@ APRIORI_BUOYLIST = [
     [(51.14344451713093, 2.7475114395335662)],   # buoy 1 — replace with real a-priori GPS coords
 ]
 SPEED = 3
-TILT = 0.5
+TILT = 0
