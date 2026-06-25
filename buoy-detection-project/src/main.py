@@ -124,7 +124,8 @@ def main() -> None:
     i = 1
     prev_waypoint = waypoints[i-1]
     next_waypoint = waypoints[i]
-    set_waypoint(next_waypoint + INDEX_LOOK_AHEAD)
+    sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
+    set_waypoint(sail_waypoint)
     while True:
         boat_pos = get_mqtt.get_boat_position()
         if boat_pos is None:
@@ -145,7 +146,8 @@ def main() -> None:
             i += 1
             prev_waypoint = next_waypoint
             next_waypoint = waypoints[i]
-            set_waypoint(next_waypoint + INDEX_LOOK_AHEAD)
+            sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
+            set_waypoint(sail_waypoint)
             
     print("DETECT_1")
 
@@ -159,7 +161,8 @@ def main() -> None:
 
     prev_waypoint = waypoints[i-1]
     next_waypoint = waypoints[i]
-    set_waypoint(next_waypoint + INDEX_LOOK_AHEAD)
+    sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
+    set_waypoint(sail_waypoint)
 
     # ------------------------------------------------------------------
     # 6. Wait until the boat is within 7 m of buoy 1's a-priori position.
@@ -182,7 +185,8 @@ def main() -> None:
             i += 1
             prev_waypoint = next_waypoint
             next_waypoint = waypoints[i]
-            set_waypoint(waypoints[i] + INDEX_LOOK_AHEAD)
+            sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
+            set_waypoint(sail_waypoint)
 
 
     print("DETECT_2")
@@ -197,7 +201,8 @@ def main() -> None:
 
     prev_waypoint = waypoints[i-1]
     next_waypoint = waypoints[i]
-    set_waypoint(next_waypoint + INDEX_LOOK_AHEAD)
+    sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
+    set_waypoint(sail_waypoint)
 
     while True:
         boat_pos = get_mqtt.get_boat_position()
@@ -211,7 +216,8 @@ def main() -> None:
             if i < len(waypoints)-INDEX_LOOK_AHEAD:
                 prev_waypoint = next_waypoint
                 next_waypoint = waypoints[i]
-                set_waypoint(next_waypoint + INDEX_LOOK_AHEAD)
+                sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
+                set_waypoint(sail_waypoint)
             else:
                 stop_navigation()
 
