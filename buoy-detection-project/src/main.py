@@ -19,6 +19,7 @@ from config import INDEX_LOOK_AHEAD
 from config import MARGE
 from config import STATE_TRANS_DIST
 from config import APRIORI_BUOYLIST
+from past_waypoint_new import is_past_waypoint
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +36,7 @@ def haversine(lat1: float, lat2: float, lon1: float, lon2: float) -> float:
     a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
+def is_past_waypoint_old(prev_waypoint, next_waypoint, boat_pos):
     """
     Returns False if boat_pos is on the prev_waypoint-side of the perpendicular line through next_waypoint,
     Returns True if boat_pos is past next_waypoint (on the far side).
