@@ -46,6 +46,8 @@ from ultralytics import YOLO
 import post_mqtt
 import get_mqtt
 
+from config import BUOY_MATCH_DISTANCE
+
 # ---------------------------------------------------------------------------
 # Stream configuration
 # ---------------------------------------------------------------------------
@@ -60,7 +62,7 @@ LEFT_STREAM_USER      = os.getenv("LEFT_STREAM_USER",      "root")
 LEFT_STREAM_PASSWORD  = os.getenv("LEFT_STREAM_PASSWORD",  "mahi1234")
 LEFT_STREAM_PATH      = os.getenv("LEFT_STREAM_PATH",      "/axis-media/media.amp?camera=1")
 
-MODEL_PATH = os.getenv("MODEL_PATH", "../models/white_buoy_yolo11s.pt")
+MODEL_PATH = os.getenv("MODEL_PATH", "../models/new_buoy_yolo11s.pt")
 
 # ---------------------------------------------------------------------------
 # Camera geometry constants
@@ -89,7 +91,6 @@ ANGLE_OFFSET_RIGHT = math.radians(float(os.getenv("ANGLE_OFFSET_RIGHT", "0")))
 
 # How close (metres, in boat-local XY) a new detection must be to an
 # existing known buoy to be considered the same object.
-BUOY_MATCH_DISTANCE = float(os.getenv("BUOY_MATCH_DISTANCE", "4.0"))
 
 # ---------------------------------------------------------------------------
 # YOLO model (shared across both worker threads, protected by a lock)

@@ -9,6 +9,9 @@ from typing import List, Tuple
 
 import numpy as np
 
+from config import N_SLALOM_PTS
+from config import N_ARC_PTS
+
 Position = Tuple[float, float]   # (longitude, latitude)
 
 def padplanning_wrapper(buoy_positions, marge, state):
@@ -83,8 +86,8 @@ def padplanning_slalom(
     boat_pos: Position,
     state: str,
     slalom_offset: float = 12.0,   # dwarse afstand (m) — ook straal van 180° bocht
-    n_arc_pts: int = 20,           # waypoints voor de 180° bocht om B2
-    n_slalom_pts: int = 12,        # waypoints per slalom-been (S-curve)
+    n_arc_pts: int = N_ARC_PTS,           # waypoints voor de 180° bocht om B2
+    n_slalom_pts: int = N_SLALOM_PTS,        # waypoints per slalom-been (S-curve)
 ) -> List[Position]:
     """
     Berekent het slalom-parcour:
@@ -146,6 +149,7 @@ def padplanning_slalom(
     # sign = +1: perp-kant eerst (noord als as=oost), -1: andere kant
     side = float(np.dot(boat - b1, perp_u))
     sign = 1 if side >= 0 else -1
+    sign = 1
 
     # ── S-curve helper ────────────────────────────────────────────────────────
     def s_curve(p_from: np.ndarray, p_to: np.ndarray,
