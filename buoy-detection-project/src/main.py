@@ -58,6 +58,8 @@ def is_past_waypoint(prev_waypoint, next_waypoint, boat_pos):
 
     return dot > 0
 
+
+
 def calculate_best_i(i,waypoints):
     j = max(i - 2, 1)
     boat_pos = get_mqtt.get_boat_position()
@@ -120,7 +122,8 @@ def main() -> None:
     with camera.buoy_list_lock:
         buoy0_lat, buoy0_lon = buoy_positions[0][0]
         buoy1_lat, buoy1_lon = buoy_positions[1][0]
-    
+
+
     i = 1
     prev_waypoint = waypoints[i-1]
     next_waypoint = waypoints[i]
