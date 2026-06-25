@@ -2,6 +2,7 @@ import math
 
 from config import APRIORI_BUOYLIST
 from config import TILT
+import post_mqtt
 
 
 buoy0_lat, buoy0_lon = APRIORI_BUOYLIST[0][0]
@@ -23,6 +24,17 @@ def _to_local_en(ref_lat: float, ref_lon: float, lat: float, lon: float):
     return east, north
 
 
+def _to_latlon(ref_lat: float, ref_lon: float, east: float, north: float):
+    """
+    Inverse of _to_local_en: convert a local East-North offset (metres)
+    back to (lat, lon). Same small-angle approximation.
+    """
+    R = 6_378_137.0
+    lat = ref_lat + math.degrees(north / R)
+    lon = ref_lon + math.degrees(east / (R * math.cos(math.radians(ref_lat))))
+    return lat, lon
+
+
 def _haversine(lat1: float, lat2: float, lon1: float, lon2: float) -> float:
     """Straight-line distance in metres between two lat/lon points."""
     R = 6_378_137.0
@@ -32,6 +44,49 @@ def _haversine(lat1: float, lat2: float, lon1: float, lon2: float) -> float:
     a = (math.sin(dphi / 2) ** 2
          + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2)
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _publish_crossline(
+    next_ll: tuple[float, float],
+    te: float, tn: float,
+    re: float, rn: float,
+    tilt_signed: float,
+    line_half_width_m: float = 20.0,
+) -> None:
+    """
+    Publish the tilted cross line to /navigation/crossline.
+
+    The transition condition is:  y_local > tilt_signed * x_local
+    Rearranged, the line itself is:  y_local = tilt_signed * x_local
+
+    A direction vector lying along this line (in local EN coords) is:
+        d = right_normal + tilt_signed * tangent
+          = (re, rn) + tilt_signed * (te, tn)
+
+    We step ±line_half_width_m along d from next_waypoint to get two
+    points that visually span the cross line on a map.
+
+    Publishes: [(lat1, lon1), (lat2, lon2)]
+    """
+    next_lat, next_lon = next_ll
+
+    # Direction vector along the cross line (not normalised, but that's fine
+    # for scaling by line_half_width_m since we normalise explicitly below)
+    de = re + tilt_signed * te
+    dn = rn + tilt_signed * tn
+    d_len = math.hypot(de, dn)
+    if d_len < 1e-9:
+        # Degenerate (tilt makes the line collapse); fall back to pure right-normal
+        de, dn = re, rn
+        d_len = 1.0
+    de /= d_len
+    dn /= d_len
+
+    # Two points ±line_half_width_m along the cross line from next_waypoint
+    p1 = _to_latlon(next_lat, next_lon,  de * line_half_width_m,  dn * line_half_width_m)
+    p2 = _to_latlon(next_lat, next_lon, -de * line_half_width_m, -dn * line_half_width_m)
+
+    post_mqtt.publish('/navigation/crossline', [p1, p2])
 
 
 def is_past_waypoint(
@@ -102,7 +157,12 @@ def is_past_waypoint(
         tilt_signed = +abs(tilt)   # buoy left (or ahead) → tilt right
 
     # ------------------------------------------------------------------
-    # 3. Project boat position into path frame (origin = next_waypoint)
+    # 3. Publish the cross line for visualisation / debugging
+    # ------------------------------------------------------------------
+    _publish_crossline(next_ll, te, tn, re, rn, tilt_signed)
+
+    # ------------------------------------------------------------------
+    # 4. Project boat position into path frame (origin = next_waypoint)
     # ------------------------------------------------------------------
     be, bn = _to_local_en(
         next_ll[0], next_ll[1],
@@ -112,6 +172,6 @@ def is_past_waypoint(
     x_local = re * be + rn * bn    # cross-path  (positive = right of path)
 
     # ------------------------------------------------------------------
-    # 4. Tilted transition line: y > tilt_signed * x
+    # 5. Tilted transition line: y > tilt_signed * x
     # ------------------------------------------------------------------
     return y_local > tilt_signed * x_local
