@@ -18,6 +18,7 @@ from autopilot import set_waypoint, start_navigation, stop_navigation
 from config import INDEX_LOOK_AHEAD
 from config import MARGE
 from config import STATE_TRANS_DIST
+from config import APRIORI_BUOYLIST
 
 
 # ---------------------------------------------------------------------------
@@ -80,10 +81,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     with camera.buoy_list_lock:
         camera.buoy_list.clear()
-        camera.buoy_list.extend([
-            [(51.14339735730541, 2.7468965058450774)],   # buoy 0 — replace with real a-priori GPS coords
-            [(51.14344451713093, 2.7475114395335662)],   # buoy 1 — replace with real a-priori GPS coords
-        ])       
+        camera.buoy_list.extend(APRIORI_BUOYLIST)       
 
         
 
