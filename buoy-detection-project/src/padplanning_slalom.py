@@ -11,7 +11,7 @@ import numpy as np
 
 from config import N_SLALOM_PTS
 from config import N_ARC_PTS
-from config import SPEED
+from config import FAST_SPEED, SLOW_SPEED
 
 Position = Tuple[float, float]   # (longitude, latitude)
 
@@ -67,16 +67,16 @@ def padplanning_wrapper(buoy_positions, marge, state):
     # Safely compute offset entirely in meters
     slalom_offset = max(buoys_max_dist) + marge
 
-    # Generate the slalom path waypoints: list of (lon, lat)
+    # Generate the slalom path waypoints: list of ((lon, lat), speed)
     slalom_waypoints = padplanning_slalom(
         buoys_centers, heading, boat_pos, state, slalom_offset
     )
     
     # 3. Translate back to original format: list of (lat, lon, speed)
-    # Flipped coordinates and hardcoded constant speed = 1
+    # Flipped coordinates, speed comes from the waypoint tuple
     final_waypoints = []
-    for lon_wp, lat_wp in slalom_waypoints:
-        final_waypoints.append(((lat_wp, lon_wp), SPEED))
+    for (lon_wp, lat_wp), speed in slalom_waypoints:
+        final_waypoints.append(((lat_wp, lon_wp), speed))
 
     return final_waypoints
 
@@ -89,7 +89,7 @@ def padplanning_slalom(
     slalom_offset: float = 12.0,   # dwarse afstand (m) — ook straal van 180° bocht
     n_arc_pts: int = N_ARC_PTS,           # waypoints voor de 180° bocht om B2
     n_slalom_pts: int = N_SLALOM_PTS,        # waypoints per slalom-been (S-curve)
-) -> List[Position]:
+) -> List[Tuple[Position, float]]:
     """
     Berekent het slalom-parcour:
       1. Slalom heen  – S-curve langs B1 en B2 (elk een andere kant)
@@ -109,7 +109,7 @@ def padplanning_slalom(
 
     Returns
     -------
-    [(lon, lat), ...] – het volledige resterende parcour, startend bij het
+    [((lon, lat), speed), ...] – het volledige resterende parcour, startend bij het
     beste instappunt gegeven de huidige positie en koers.
     """
     R_EARTH = 6_371_000.0
@@ -203,12 +203,17 @@ def padplanning_slalom(
     afrit = [p_gate + (p_finish - p_gate) * (j / n_exit)
              for j in range(1, n_exit + 1)]
 
-    # ── Volledig pad samenstellen (geen dubbele overgangspunten) ──────────────
-    waypoints: List[np.ndarray] = (
-        slalom_fwd           # [0 .. n_slalom_pts]
-        + arc_pts[1:]        # [1 .. n_arc_pts]     (arc_pts[0] == slalom_fwd[-1])
-        + slalom_ret[1:]     # [1 .. n_slalom_pts]  (slalom_ret[0] == arc_pts[-1])
-        + afrit              # [1 .. n_exit]        (afrit[0]-startpunt == slalom_ret[-1])
+    # ── Volledig pad samenstellen met snelheden (geen dubbele overgangspunten) ─
+    slalom_fwd_tagged = [(wp, FAST_SPEED) for wp in slalom_fwd]
+    arc_pts_tagged    = [(wp, SLOW_SPEED) for wp in arc_pts[1:]]
+    slalom_ret_tagged = [(wp, FAST_SPEED) for wp in slalom_ret[1:]]
+    afrit_tagged      = [(wp, FAST_SPEED) for wp in afrit]
+
+    waypoints: List[Tuple[np.ndarray, float]] = (
+        slalom_fwd_tagged
+        + arc_pts_tagged
+        + slalom_ret_tagged
+        + afrit_tagged
     )
 
     # ── Beste instappunt (afstand + koersuitlijning + voortgangsbias) ─────────
@@ -224,12 +229,12 @@ def padplanning_slalom(
         diff = abs(((bearing - heading_deg + 180.0) % 360.0) - 180.0)
         return dist + 2.0 * diff + 0.5 * i
 
-    best_i = min(range(len(waypoints)), key=lambda i: score(i, waypoints[i]))
+    best_i = min(range(len(waypoints)), key=lambda i: score(i, waypoints[i][0]))
 
     # dit was niet zo'n robuste methode => deze cut gebeurt nu in main.py
     best_i = 0
 
-    return [to_lonlat(wp) for wp in waypoints[best_i:]]
+    return [(to_lonlat(wp), speed) for wp, speed in waypoints[best_i:]]
 
 
 # ── Snelle test ───────────────────────────────────────────────────────────────
