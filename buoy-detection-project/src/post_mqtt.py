@@ -61,8 +61,8 @@ def publish_crossline(point1: tuple[float, float], point2: tuple[float, float]) 
     mid-mission immediately sees the current cross line.
     """
     payload = json.dumps([
-        {"latitude": point1[0], "longitude": point1[1]},
-        {"latitude": point2[0], "longitude": point2[1]},
+        (point1[0], point1[1]),
+        (point2[0], point2[1]),
     ])
     client = _ensure_client_started()
     info = client.publish(
