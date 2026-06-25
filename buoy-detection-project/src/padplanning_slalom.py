@@ -11,6 +11,7 @@ import numpy as np
 
 from config import N_SLALOM_PTS
 from config import N_ARC_PTS
+from config import SPEED
 
 Position = Tuple[float, float]   # (longitude, latitude)
 
@@ -75,7 +76,7 @@ def padplanning_wrapper(buoy_positions, marge, state):
     # Flipped coordinates and hardcoded constant speed = 1
     final_waypoints = []
     for lon_wp, lat_wp in slalom_waypoints:
-        final_waypoints.append(((lat_wp, lon_wp), 2))
+        final_waypoints.append(((lat_wp, lon_wp), SPEED))
 
     return final_waypoints
 
