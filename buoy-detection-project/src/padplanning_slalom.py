@@ -207,7 +207,7 @@ def padplanning_slalom(
     slalom_fwd_tagged = [(wp, FAST_SPEED) for wp in slalom_fwd]
     arc_pts_tagged    = [(wp, SLOW_SPEED) for wp in arc_pts[1:]]
     slalom_ret_tagged = [(wp, FAST_SPEED) for wp in slalom_ret[1:]]
-    afrit_tagged      = [(wp, FAST_SPEED) for wp in afrit]
+    afrit_tagged      = [(wp, SLOW_SPEED) for wp in afrit]
 
     waypoints: List[Tuple[np.ndarray, float]] = (
         slalom_fwd_tagged
