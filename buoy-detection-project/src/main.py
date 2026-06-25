@@ -145,8 +145,6 @@ def main() -> None:
             break
 
         if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
-            print("i")
-            print(i)
             i += 1
             prev_waypoint = next_waypoint
             next_waypoint = waypoints[i]
@@ -181,7 +179,6 @@ def main() -> None:
             boat_pos["longitude"], buoy1_lon,
         )
         print("BOEI 2")
-        print(dist)
         if dist < STATE_TRANS_DIST:
             break
 
