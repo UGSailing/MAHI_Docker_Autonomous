@@ -42,6 +42,38 @@ PATH_TOPIC = "navigation/path"
 _client: Optional[mqtt.Client] = None
 _client_lock = threading.Lock()
 
+CROSSLINE_TOPIC = "navigation/crossline"
+
+
+def publish_crossline(point1: tuple[float, float], point2: tuple[float, float]) -> None:
+    """Publish the tilted cross line to navigation/crossline.
+
+    Each point is a (latitude, longitude) tuple. The two points define
+    the line the boat must cross for the current waypoint to be considered
+    passed.
+
+        [
+            {"latitude": 50.9148, "longitude": 2.6892},
+            {"latitude": 50.9150, "longitude": 2.6895}
+        ]
+
+    QoS 1 and retain=True so that a visualisation subscriber that connects
+    mid-mission immediately sees the current cross line.
+    """
+    payload = json.dumps([
+        {"latitude": point1[0], "longitude": point1[1]},
+        {"latitude": point2[0], "longitude": point2[1]},
+    ])
+    client = _ensure_client_started()
+    info = client.publish(
+        CROSSLINE_TOPIC,
+        payload=payload,
+        qos=1,
+        retain=True,
+    )
+    if info.rc != mqtt.MQTT_ERR_SUCCESS:
+        print(f"MQTT publish failed for crossline: rc={info.rc}")
+
 
 def _ensure_client_started() -> mqtt.Client:
     global _client

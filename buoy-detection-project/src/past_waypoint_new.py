@@ -86,7 +86,7 @@ def _publish_crossline(
     p1 = _to_latlon(next_lat, next_lon,  de * line_half_width_m,  dn * line_half_width_m)
     p2 = _to_latlon(next_lat, next_lon, -de * line_half_width_m, -dn * line_half_width_m)
 
-    post_mqtt.publish('/navigation/crossline', [p1, p2])
+    post_mqtt.publish_crossline(p1, p2)
 
 
 def is_past_waypoint(
