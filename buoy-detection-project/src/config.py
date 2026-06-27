@@ -17,7 +17,7 @@ TILT = 0.5
 # padplanning interpolatie:
 
 INTERPOLATE_USING_DISTANCE = True  # bool — use WAYPOINT_DISTANCE instead of N_ARC_PTS/N_SLALOM_PTS
-WAYPOINT_DISTANCE        = 2.0   # m — spacing between waypoints - - wordt niet gebruikt als INTERPOLATE_USING_DISTANCE false is
+WAYPOINT_DISTANCE = 2.0   # m — spacing between waypoints - - wordt niet gebruikt als INTERPOLATE_USING_DISTANCE false is
 N_ARC_PTS = 12           # waypoints voor de 180° bocht om B2 - worden niet gebruikt als INTERPOLATE_USING_DISTANCE true is
 N_SLALOM_PTS = 20        # waypoints per slalom-been (S-curve) - worden niet gebruikt als INTERPOLATE_USING_DISTANCE true is
 
@@ -25,7 +25,7 @@ N_SLALOM_PTS = 20        # waypoints per slalom-been (S-curve) - worden niet geb
 
 # look ahead (best afstellen in meters)
 
-METER_LOOK_AHEAD  = 10.0                                    # m
+METER_LOOK_AHEAD  = 6.0                                    # m
 INDEX_LOOK_AHEAD  = round(METER_LOOK_AHEAD / WAYPOINT_DISTANCE)
 
 
