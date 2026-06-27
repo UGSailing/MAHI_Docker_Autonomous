@@ -7,6 +7,7 @@ background thread, then runs the mission loop (detect → plan → sail).
 
 import threading
 import time
+import random
 
 import camera
 import get_mqtt
@@ -19,6 +20,8 @@ from config import INDEX_LOOK_AHEAD
 from config import MARGE
 from config import STATE_TRANS_DIST
 from config import APRIORI_BUOYLIST
+from config import TEST_PADAANPASSING_ZONDER_BOEIEN
+from config import BUOY_MATCH_DISTANCE
 from past_waypoint_new import is_past_waypoint
 
 
@@ -27,6 +30,8 @@ from past_waypoint_new import is_past_waypoint
 # ---------------------------------------------------------------------------
 
 import math
+
+
 
 def haversine(lat1: float, lat2: float, lon1: float, lon2: float) -> float:
     R = 6_378_137.0
@@ -70,7 +75,17 @@ def calculate_best_i(i,waypoints):
         return j
     else:
         return i
-        
+
+def replan(buoy_positions, i, waypoints):
+    with camera.buoy_list_lock:
+        waypoints = padplanning_wrapper(buoy_positions, marge=MARGE)
+    post_mqtt.publish_path(waypoints)
+    i = calculate_best_i(i, waypoints)
+    prev_waypoint = waypoints[i - 1]
+    next_waypoint = waypoints[i]
+    set_waypoint(waypoints[i + INDEX_LOOK_AHEAD])
+    return waypoints, i, prev_waypoint, next_waypoint
+  
 
 # ---------------------------------------------------------------------------
 # Main
@@ -117,12 +132,19 @@ def main() -> None:
     start_navigation()
     post_mqtt.publish_path(waypoints)
 
-    # ------------------------------------------------------------------
-    # 5. Wait until the boat is within 7 m of buoy 0's a-priori position.
-    # ------------------------------------------------------------------
     with camera.buoy_list_lock:
         buoy0_lat, buoy0_lon = buoy_positions[0][0]
         buoy1_lat, buoy1_lon = buoy_positions[1][0]
+
+
+    R_EARTH = 6_371_000.0
+    m_per_deg_lat = math.pi / 180.0 * R_EARTH
+    m_per_deg_lon = math.cos(math.radians(buoy1_lat)) * math.pi / 180.0 * R_EARTH
+    if TEST_PADAANPASSING_ZONDER_BOEIEN:
+        buoy_positions[0] += [(
+            buoy0_lat + 2 * BUOY_MATCH_DISTANCE * random.random() / m_per_deg_lat,
+            buoy0_lon + 2 * BUOY_MATCH_DISTANCE * random.random() / m_per_deg_lon
+        )]
 
 
     i = 1
@@ -130,95 +152,46 @@ def main() -> None:
     next_waypoint = waypoints[i]
     sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
     set_waypoint(sail_waypoint)
+
+    
+    near_B0 = False
+    near_B1 = False
+
+
+
+
     while True:
+
         boat_pos = get_mqtt.get_boat_position()
         if boat_pos is None:
             time.sleep(0.5)
             continue
 
-        dist = haversine(
-            boat_pos["latitude"], buoy0_lat,
-            boat_pos["longitude"], buoy0_lon,
-        )        
-        if dist < STATE_TRANS_DIST:
-            print("distance 1 smaller")
-            break
+        dist_B0 = haversine(boat_pos["latitude"], buoy0_lat,
+                            boat_pos["longitude"], buoy0_lon)
+        dist_B1 = haversine(boat_pos["latitude"], buoy1_lat,
+                            boat_pos["longitude"], buoy1_lon)
+       
+        if not near_B0 and dist_B0 < STATE_TRANS_DIST:
+            near_B0, near_B1 = True, False
+            waypoints, i, prev_waypoint, next_waypoint = replan(buoy_positions, i, waypoints)
+
+        elif not near_B1 and dist_B1 < STATE_TRANS_DIST:
+            near_B0, near_B1 = False, True
+            waypoints, i, prev_waypoint, next_waypoint = replan(buoy_positions, i, waypoints)
+
 
         if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
             i += 1
+            if i > len(waypoints)-INDEX_LOOK_AHEAD:
+                break
             prev_waypoint = next_waypoint
             next_waypoint = waypoints[i]
             sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
             set_waypoint(sail_waypoint)
+
+    stop_navigation()
             
-    print("DETECT_1")
-
-    with camera.buoy_list_lock:
-        waypoints = padplanning_wrapper(buoy_positions, marge=MARGE, state='DETECT_1') # padplanning_wrapper(buoy_positions, marge=MARGE, state='DETECT_1')
-    # sail_path(waypoints)
-    post_mqtt.publish_path(waypoints)
-
-    # nieuwe i berekenen
-    i = calculate_best_i(i,waypoints)
-
-    prev_waypoint = waypoints[i-1]
-    next_waypoint = waypoints[i]
-    sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
-    set_waypoint(sail_waypoint)
-
-    # ------------------------------------------------------------------
-    # 6. Wait until the boat is within 7 m of buoy 1's a-priori position.
-    # ------------------------------------------------------------------
-    while True:
-        boat_pos = get_mqtt.get_boat_position()
-        if boat_pos is None:
-            time.sleep(0.5)
-            continue
-        dist = haversine(
-            boat_pos["latitude"], buoy1_lat,
-            boat_pos["longitude"], buoy1_lon,
-        )
-        print("BOEI 2")
-        if dist < STATE_TRANS_DIST:
-            break
-
-        if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
-            i += 1
-            prev_waypoint = next_waypoint
-            next_waypoint = waypoints[i]
-            sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
-            set_waypoint(sail_waypoint)
-
-
-    print("DETECT_2")
-
-    with camera.buoy_list_lock:
-        waypoints = padplanning_wrapper(buoy_positions, marge=MARGE, state='DETECT_2')#padplanning_wrapper(buoy_positions, marge=MARGE, state='DETECT_2')
-    # sail_path(waypoints) # TODO uncomment
-    post_mqtt.publish_path(waypoints)
-
-    # nieuwe i berekenen
-    i = calculate_best_i(i,waypoints)
-
-    prev_waypoint = waypoints[i-1]
-    next_waypoint = waypoints[i]
-    sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
-    set_waypoint(sail_waypoint)
-
-    while True:
-        boat_pos = get_mqtt.get_boat_position()
-        if boat_pos is None:
-            time.sleep(0.5)
-            continue
-        if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
-            i += 1
-            if i < len(waypoints)-INDEX_LOOK_AHEAD:
-                prev_waypoint = next_waypoint
-                next_waypoint = waypoints[i]
-                sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
-                set_waypoint(sail_waypoint)
-            else:
-                stop_navigation()
 
 if __name__ == "__main__":
     main()
