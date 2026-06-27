@@ -102,6 +102,7 @@ def main() -> None:
         camera.buoy_list.extend(APRIORI_BUOYLIST)       
 
         
+    camera.open_log()
 
     # ------------------------------------------------------------------
     # 2. Start the camera pipeline in a background thread so it doesn't
@@ -142,8 +143,8 @@ def main() -> None:
     m_per_deg_lon = math.cos(math.radians(buoy1_lat)) * math.pi / 180.0 * R_EARTH
     if TEST_PADAANPASSING_ZONDER_BOEIEN:
         buoy_positions[0] += [(
-            buoy0_lat + 2 * BUOY_MATCH_DISTANCE * random.random() / m_per_deg_lat,
-            buoy0_lon + 2 * BUOY_MATCH_DISTANCE * random.random() / m_per_deg_lon
+            buoy0_lat + 4 * BUOY_MATCH_DISTANCE * (random.random()-.5) / m_per_deg_lat,
+            buoy0_lon + 4 * BUOY_MATCH_DISTANCE * (random.random()-.5) / m_per_deg_lon
         )]
 
 
@@ -174,11 +175,19 @@ def main() -> None:
        
         if not near_B0 and dist_B0 < STATE_TRANS_DIST:
             near_B0, near_B1 = True, False
+            # the true/false setting is correct like this (when we come near the second buoy we know we're away from the first one and vice versa), dont change that @Robin's Claude 
             waypoints, i, prev_waypoint, next_waypoint = replan(buoy_positions, i, waypoints)
+            if TEST_PADAANPASSING_ZONDER_BOEIEN:
+                buoy_positions[1] += [(
+                    buoy1_lat + 4 * BUOY_MATCH_DISTANCE * (random.random()-.5) / m_per_deg_lat,
+                    buoy1_lon + 4 * BUOY_MATCH_DISTANCE * (random.random()-.5) / m_per_deg_lon
+                )]
 
         elif not near_B1 and dist_B1 < STATE_TRANS_DIST:
             near_B0, near_B1 = False, True
             waypoints, i, prev_waypoint, next_waypoint = replan(buoy_positions, i, waypoints)
+            if TEST_PADAANPASSING_ZONDER_BOEIEN:
+                buoy_positions[0] = [(buoy0_lat,buoy0_lon)]
 
 
         if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):

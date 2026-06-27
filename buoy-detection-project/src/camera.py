@@ -37,7 +37,11 @@ import math
 import os
 import threading
 import time
+import json
+import pathlib
 import urllib.parse
+
+_file = None
 
 import cv2
 import numpy as np
@@ -47,6 +51,29 @@ import post_mqtt
 import get_mqtt
 
 from config import BUOY_MATCH_DISTANCE
+
+
+# ---------------------------------------------------------------------------
+# hulp functies om detectie history op te slaan
+# ---------------------------------------------------------------------------
+
+def open_log(run_dir: str = "runs") -> None:
+    global _file
+    pathlib.Path(run_dir).mkdir(exist_ok=True)
+    fname = f"{run_dir}/detections_{int(time.time())}.jsonl"
+    _file = open(fname, "a", buffering=1)   # line-buffered = crash-safe
+
+def log(side: str, x: float, y: float, z: float, depth: float,
+        boat_lat: float, boat_lon: float, heading: float,
+        obj_lat: float, obj_lon: float) -> None:
+    if _file is None:
+        return
+    _file.write(json.dumps({
+        "t": time.time(), "side": side,
+        "x_m": x, "y_m": y, "z_m": z, "depth_m": depth,
+        "boat_lat": boat_lat, "boat_lon": boat_lon, "heading": heading,
+        "lat": obj_lat, "lon": obj_lon
+    }) + "\n")
 
 # ---------------------------------------------------------------------------
 # Stream configuration
@@ -377,6 +404,10 @@ def _process_cam(
         y += CAMERA_TO_BOAT_CENTRE
 
         obj_lat, obj_lon = viewer_offset_lat_lon(latitude, longitude, heading, x, y)
+
+        log(side, x, y, _z, depth,
+            boat_pos["latitude"], boat_pos["longitude"], heading,
+            obj_lat, obj_lon)
 
         # Find the buoy slot whose a-priori position is closest to this
         # detection, and only update if we beat the current best distance.
