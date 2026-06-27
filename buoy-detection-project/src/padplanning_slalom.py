@@ -99,24 +99,28 @@ def _tag_with_ramp(
 #  Wrapper
 # ─────────────────────────────────────────────────────────────────────────────
 
-def padplanning_wrapper(buoy_positions, marge, state='START', start_position=None):
+def padplanning_wrapper(buoy_positions, marge, state='START', start_position=None, start_heading_deg=None):
     """
     Wrapper to correctly translate inputs/outputs between the old architecture
     and padplanning_slalom.
 
     Parameters
     ----------
-    buoy_positions  : list of buoy point-clouds, each a list of (lat, lon) pairs
-    marge           : safety margin added to the largest buoy radius (meters)
-    state           : 'START' | 'DETECT_1' | 'DETECT_2' | 'DETECT_3'
-    start_position  : (lat, lon) of the boat's starting position, or None to use
-                      the current MQTT position as a fallback
+    buoy_positions    : list of buoy point-clouds, each a list of (lat, lon) pairs
+    marge             : safety margin added to the largest buoy radius (meters)
+    state             : 'START' | 'DETECT_1' | 'DETECT_2' | 'DETECT_3'
+    start_position    : (lat, lon) of the boat's starting position (required)
+    start_heading_deg : initial heading of the boat at start_position (required)
     """
+    if start_position is None:
+        raise ValueError("start_position is required and must be a (lat, lon) tuple.")
+    if start_heading_deg is None:
+        raise ValueError("start_heading_deg is required.")
+
     buoys_centers = []
     buoys_max_dist = []
 
     R_EARTH = 6_371_000.0
-    
 
     for buoy_pos in buoy_positions:
         total_lat = sum(coord[0] for coord in buoy_pos)
@@ -139,27 +143,22 @@ def padplanning_wrapper(buoy_positions, marge, state='START', start_position=Non
                 max_d_meters = distance_meters
         buoys_max_dist.append(max_d_meters)
 
-    # Current telemetry
+    # Current telemetry (boat_pos used only as coordinate reference frame origin)
     boat_position = get_mqtt.get_boat_position()
     boat_pos = (boat_position['longitude'], boat_position['latitude'])
-    heading  = boat_position['heading']
 
     slalom_offset = max(buoys_max_dist) + marge
 
-    # Resolve start_position: convert (lat, lon) → (lon, lat)
-    if start_position is not None:
-        start_pos_lonlat = (start_position[1], start_position[0])
-    else:
-        start_pos_lonlat = boat_pos   # fall back to current position
+    # Convert start_position from (lat, lon) → (lon, lat)
+    start_pos_lonlat = (start_position[1], start_position[0])
 
     slalom_waypoints = padplanning_slalom(
         buoys_centers,
-        heading,
         boat_pos,
         state,
         slalom_offset,
         start_pos=start_pos_lonlat,
-        start_heading_deg=heading,
+        start_heading_deg=start_heading_deg,
     )
 
     # Translate back: (lon, lat) → (lat, lon), keep speed
@@ -172,7 +171,6 @@ def padplanning_wrapper(buoy_positions, marge, state='START', start_position=Non
 
 def padplanning_slalom(
     buoys: List[Position],
-    heading_deg: float,
     boat_pos: Position,
     state: str,
     slalom_offset: float = 12.0,
@@ -197,8 +195,7 @@ def padplanning_slalom(
     Parameters
     ----------
     buoys             : [(lon1, lat1), (lon2, lat2)]
-    heading_deg       : kompaskoers boot (0=N, 90=O, kloksgewijs)
-    boat_pos          : (lon, lat) huidige positie boot
+    boat_pos          : (lon, lat) huidige positie boot (used as coordinate reference origin)
     state             : 'START' | 'DETECT_1' | 'DETECT_2'
     slalom_offset     : dwarse breedte én bochtenstraal (m)
     n_arc_pts         : waypoints voor de 180° bocht (gebruikt als
@@ -206,8 +203,7 @@ def padplanning_slalom(
     n_slalom_pts      : waypoints per slalom-been (idem)
     waypoint_distance : gewenste afstand tussen waypoints in m (gebruikt als
                         INTERPOLATE_USING_DISTANCE=True)
-    start_pos         : (lon, lat) startpositie voor de aanrijroute;
-                        None → boot-positie wordt gebruikt
+    start_pos         : (lon, lat) startpositie voor de aanrijroute (required)
     start_heading_deg : initiële koers van de boot bij start_pos (graden)
 
     Returns
@@ -329,10 +325,7 @@ def padplanning_slalom(
     # spline: p(t) = h00·P0 + h10·T0 + h01·P1 + h11·T1, where the tangent
     # magnitudes are scaled to approach_d so the bend is proportional to the
     # distance (standard Catmull-Rom / Hermite convention).
-    if start_pos is not None:
-        start_xy = to_xy(*start_pos)
-    else:
-        start_xy = boat.copy()
+    start_xy = to_xy(*start_pos)
 
     # Compass heading → local XY unit vector (x=East, y=North)
     hdg_rad    = math.radians(start_heading_deg)
@@ -500,7 +493,7 @@ if __name__ == "__main__":
         ("DETECT_2", off(  5, -14), 55, off(-100,  4)),
     ]:
         pad = padplanning_slalom(
-            [ba, bb], hdg, bpos, state,
+            [ba, bb], bpos, state,
             start_pos=spos, start_heading_deg=hdg
         )
         print(f"{state}: {len(pad)} waypoints, "

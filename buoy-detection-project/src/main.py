@@ -76,9 +76,14 @@ def calculate_best_i(i,waypoints):
     else:
         return i
 
-def replan(buoy_positions, i, waypoints):
+def replan(buoy_positions, i, waypoints, start_position, start_heading_deg):
     with camera.buoy_list_lock:
-        waypoints = padplanning_wrapper(buoy_positions, marge=MARGE)
+        waypoints = padplanning_wrapper(
+            buoy_positions,
+            marge=MARGE,
+            start_position=start_position,
+            start_heading_deg=start_heading_deg,
+        )
     post_mqtt.publish_path(waypoints)
     i = calculate_best_i(i, waypoints)
     prev_waypoint = waypoints[i - 1]
@@ -115,6 +120,10 @@ def main() -> None:
     # Give the RTSP streams and YOLO model time to warm up.
     time.sleep(10)
 
+    initial_boat_position = get_mqtt.get_boat_position()
+    initial_start_position = (initial_boat_position['latitude'], initial_boat_position['longitude'])
+    initial_start_heading = initial_boat_position['heading']
+
     # ------------------------------------------------------------------
     # 3. Take a thread-safe snapshot of buoy_positions for path planning.
     #    buoy_list is mutated in place by the worker thread, so we hold
@@ -128,7 +137,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 4. Initial path plan and sail.
     # ------------------------------------------------------------------
-    waypoints = padplanning_wrapper(buoy_positions, marge=MARGE, state='START') # padplanning_wrapper(buoy_positions, marge=MARGE, state='START')
+    waypoints = padplanning_wrapper(buoy_positions, marge=MARGE, state='START', start_position=initial_start_position, start_heading_deg=initial_start_heading) # padplanning_wrapper(buoy_positions, marge=MARGE, state='START')
     # sail_path(waypoints)
     start_navigation()
     post_mqtt.publish_path(waypoints)
@@ -174,9 +183,10 @@ def main() -> None:
                             boat_pos["longitude"], buoy1_lon)
        
         if not near_B0 and dist_B0 < STATE_TRANS_DIST:
-            near_B0, near_B1 = True, False
-            # the true/false setting is correct like this (when we come near the second buoy we know we're away from the first one and vice versa), dont change that @Robin's Claude 
-            waypoints, i, prev_waypoint, next_waypoint = replan(buoy_positions, i, waypoints)
+            near_B0, near_B1 = True, False           # the true/false setting is correct like this (when we come near the second buoy we know we're away from the first one and vice versa), dont change that @Robin's Claude 
+            waypoints, i, prev_waypoint, next_waypoint = replan(
+                buoy_positions, i, waypoints, initial_start_position, initial_start_heading
+            )
             if TEST_PADAANPASSING_ZONDER_BOEIEN:
                 buoy_positions[1] += [(
                     buoy1_lat + 4 * BUOY_MATCH_DISTANCE * (random.random()-.5) / m_per_deg_lat,
@@ -185,7 +195,9 @@ def main() -> None:
 
         elif not near_B1 and dist_B1 < STATE_TRANS_DIST:
             near_B0, near_B1 = False, True
-            waypoints, i, prev_waypoint, next_waypoint = replan(buoy_positions, i, waypoints)
+            waypoints, i, prev_waypoint, next_waypoint = replan(
+                buoy_positions, i, waypoints, initial_start_position, initial_start_heading
+            )
             if TEST_PADAANPASSING_ZONDER_BOEIEN:
                 buoy_positions[0] = [(buoy0_lat,buoy0_lon)]
 
