@@ -183,7 +183,7 @@ def main() -> None:
 
         if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
             i += 1
-            if i > len(waypoints)-INDEX_LOOK_AHEAD:
+            if i >= len(waypoints)-INDEX_LOOK_AHEAD:
                 break
             prev_waypoint = next_waypoint
             next_waypoint = waypoints[i]
