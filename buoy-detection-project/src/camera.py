@@ -37,11 +37,7 @@ import math
 import os
 import threading
 import time
-import json
-import pathlib
 import urllib.parse
-
-_file = None
 
 import cv2
 import numpy as np
@@ -51,29 +47,6 @@ import post_mqtt
 import get_mqtt
 
 from config import BUOY_MATCH_DISTANCE
-
-
-# ---------------------------------------------------------------------------
-# hulp functies om detectie history op te slaan
-# ---------------------------------------------------------------------------
-
-def open_log(run_dir: str = "runs") -> None:
-    global _file
-    pathlib.Path(run_dir).mkdir(exist_ok=True)
-    fname = f"{run_dir}/detections_{int(time.time())}.jsonl"
-    _file = open(fname, "a", buffering=1)   # line-buffered = crash-safe
-
-def log(side: str, x: float, y: float, z: float, depth: float,
-        boat_lat: float, boat_lon: float, heading: float,
-        obj_lat: float, obj_lon: float) -> None:
-    if _file is None:
-        return
-    _file.write(json.dumps({
-        "t": time.time(), "side": side,
-        "x_m": x, "y_m": y, "z_m": z, "depth_m": depth,
-        "boat_lat": boat_lat, "boat_lon": boat_lon, "heading": heading,
-        "lat": obj_lat, "lon": obj_lon
-    }) + "\n")
 
 # ---------------------------------------------------------------------------
 # Stream configuration
@@ -173,6 +146,10 @@ LEFT_STREAM_URL = build_rtsp_url(
 
 
 def open_rtsp_capture(url: str) -> cv2.VideoCapture:
+    # Force RTSP over TCP so FFmpeg always gets a complete bitstream.
+    # UDP is the default but drops packets silently, causing H.264 macroblock
+    # decode errors and visual corruption in the streamed frames.
+    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
     capture = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
     # Single-frame buffer: if inference is slower than the camera frame-rate
     # OpenCV would otherwise queue frames internally and hand back stale ones.
@@ -405,10 +382,6 @@ def _process_cam(
 
         obj_lat, obj_lon = viewer_offset_lat_lon(latitude, longitude, heading, x, y)
 
-        log(side, x, y, _z, depth,
-            boat_pos["latitude"], boat_pos["longitude"], heading,
-            obj_lat, obj_lon)
-
         # Find the buoy slot whose a-priori position is closest to this
         # detection, and only update if we beat the current best distance.
         for i, (x_buoy, y_buoy, best_dist) in enumerate(buoy_list_meters):
@@ -425,8 +398,10 @@ def process_pair(
     buoy_positions:   list[BuoyHistory],
     left_frame:       np.ndarray,
     right_frame:      np.ndarray,
+    left_result=None,
+    right_result=None,
     distance_allowed: float = BUOY_MATCH_DISTANCE,
-) -> tuple[bool, list[BuoyHistory]]:
+) -> tuple[bool, list[BuoyHistory], object, object]:
     """
     Run YOLO on both frames and fuse detections against *buoy_positions*.
 
@@ -451,33 +426,44 @@ def process_pair(
     buoy_positions:
         Current buoy history list.  Modified in place AND returned so the
         caller can use either style:
-            updated, buoy_positions = process_pair(boat_pos, buoy_positions, ...)
+            updated, buoy_positions, lr, rr = process_pair(boat_pos, buoy_positions, ...)
     left_frame, right_frame:
         Raw BGR frames from the left and right cameras.
+    left_result, right_result:
+        Optional pre-computed YOLO results.  If provided, inference is
+        skipped and these results are used directly — callers that already
+        ran the model (e.g. for annotation) should pass them in to avoid
+        running inference twice.
     distance_allowed:
         Maximum boat-local distance (metres) for a detection to be matched
         to an existing buoy.
 
     Returns
     -------
-    (updated, buoy_positions)
+    (updated, buoy_positions, left_result, right_result)
         updated        – True if at least one buoy's history was extended.
         buoy_positions – The (mutated) history list, same object as the input.
+        left_result    – YOLO result for the left frame (for annotation reuse).
+        right_result   – YOLO result for the right frame (for annotation reuse).
     """
     if boat_pos is None:
-        return False, buoy_positions
+        return False, buoy_positions, left_result, right_result
 
     latitude  = float(boat_pos["latitude"])
     longitude = float(boat_pos["longitude"])
     heading   = boat_pos["heading"]
     if heading is None:
-        return False, buoy_positions
+        return False, buoy_positions, left_result, right_result
     heading = float(heading)
 
-    # Run YOLO on both frames under the shared model lock.
-    with model_lock:
-        left_result  = model(left_frame,  conf=0.5)[0]
-        right_result = model(right_frame, conf=0.5)[0]
+    # Run YOLO on both frames under the shared model lock only when the
+    # caller has not already provided pre-computed results.
+    if left_result is None or right_result is None:
+        with model_lock:
+            if left_result is None:
+                left_result  = model(left_frame,  conf=0.5)[0]
+            if right_result is None:
+                right_result = model(right_frame, conf=0.5)[0]
 
     # Convert each buoy's a-priori position (first history entry) to
     # boat-local metres so we can compare against pixel-derived distances.
@@ -514,7 +500,7 @@ def process_pair(
         for lat, lon in history
     ])
 
-    return updated, buoy_positions
+    return updated, buoy_positions, left_result, right_result
 
 
 # ---------------------------------------------------------------------------
@@ -554,6 +540,11 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
     sees a temporally-consistent left/right pair, and the best-distance
     matching logic in _process_cam() can compete across both cameras before
     any buoy history is updated.
+
+    YOLO is run exactly once per frame pair: process_pair() returns the
+    result objects and they are reused for annotation, avoiding the previous
+    double-inference that was driving up CPU/GPU temperature and inference
+    latency over time.
     """
     while True:
         # Block until both boxes have a fresh frame.
@@ -564,21 +555,15 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
         # this pair (they are captured within milliseconds of each other).
         boat_pos = left_pos
 
-        # process_pair runs YOLO internally, updates buoy_positions in place,
-        # and publishes the full buoy history to detections/coordinates.
+        # process_pair runs YOLO internally and returns the result objects so
+        # we can reuse them for annotation without a second inference pass.
         with buoy_list_lock:
-            updated, _ = process_pair(
+            updated, _, left_result, right_result = process_pair(
                 boat_pos, buoy_list, left_frame, right_frame
             )
 
-        # Encode and publish annotated preview frames for both sides.
-        # Re-run inference just for annotation (results are lightweight to reuse
-        # but model_lock was already released inside process_pair, so we infer
-        # again here to get the result objects for .plot()).
-        with model_lock:
-            left_result  = model(left_frame,  conf=0.5)[0]
-            right_result = model(right_frame, conf=0.5)[0]
-
+        # Encode and publish annotated preview frames for both sides,
+        # reusing the result objects from process_pair (no second inference).
         for side, frame, result in (
             ("left",  left_frame,  left_result),
             ("right", right_frame, right_result),
@@ -694,7 +679,7 @@ if __name__ == "__main__":
     print(f"\nboat_pos: {boat_pos}")
     print("\n--- Calling process_pair (distance_allowed=2) ---")
 
-    updated, buoy_positions = process_pair(
+    updated, buoy_positions, _, _ = process_pair(
         boat_pos, buoy_positions, left_frame, right_frame, distance_allowed=2
     )
 
