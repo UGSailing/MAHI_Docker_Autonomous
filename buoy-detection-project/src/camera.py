@@ -582,6 +582,7 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
         # Block until both boxes have a fresh frame.
         left_frame,  left_pos  = left_box.get()
         right_frame, right_pos = right_box.get()
+        print("GOT POSITIONS")
 
         # Use the left camera's position as the authoritative snapshot for
         # this pair (they are captured within milliseconds of each other).
