@@ -579,7 +579,7 @@ def raw_reader_thread(url: str, side: str) -> None:
                     ".jpg", resized, [cv2.IMWRITE_JPEG_QUALITY, 40]
                 )
                 if ok:
-                    post_mqtt.publish_video_frame(f"{side}_raw", jpg.tobytes())
+                    post_mqtt.publish_video_frame(f"{side}", jpg.tobytes())
         except Exception as error:   # noqa: BLE001 – keep the reader alive
             print(f"Raw stream error ({url}): {error}")
             time.sleep(1)
@@ -601,11 +601,9 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
     latency over time.
     """
     while True:
-        print("Worker ran")
         # Block until both boxes have a fresh frame.
         left_frame,  left_pos  = left_box.get()
         right_frame, right_pos = right_box.get()
-        print("GOT POSITIONS")
 
         # Use the left camera's position as the authoritative snapshot for
         # this pair (they are captured within milliseconds of each other).
