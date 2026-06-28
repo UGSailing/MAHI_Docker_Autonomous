@@ -482,7 +482,7 @@ def process_pair(
 
     latitude  = float(boat_pos["latitude"])
     longitude = float(boat_pos["longitude"])
-    heading   = boat_pos["heading"]
+    heading   = boat_pos["heading"] or 0
     if heading is None:
         return False, buoy_positions, left_result, right_result
     heading = float(heading)
@@ -578,6 +578,7 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
     latency over time.
     """
     while True:
+        print("Worker ran")
         # Block until both boxes have a fresh frame.
         left_frame,  left_pos  = left_box.get()
         right_frame, right_pos = right_box.get()
