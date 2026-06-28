@@ -159,7 +159,7 @@ def is_past_waypoint(
     # ------------------------------------------------------------------
     # 3. Publish the cross line for visualisation / debugging
     # ------------------------------------------------------------------
-    _publish_crossline(next_ll, te, tn, re, rn, tilt_signed)
+    # _publish_crossline(next_ll, te, tn, re, rn, tilt_signed)
 
     # ------------------------------------------------------------------
     # 4. Project boat position into path frame (origin = next_waypoint)
