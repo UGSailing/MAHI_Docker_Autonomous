@@ -555,8 +555,8 @@ def reader_thread(url: str, box: LatestFrameBox) -> None:
                 boat_pos = get_mqtt.get_boat_position()
                 # Only queue when we have a fix and a heading; worker_thread
                 # guards too, but skipping here avoids unnecessary inference.
-                if boat_pos is not None and boat_pos["heading"] is not None:
-                    box.put((frame, boat_pos))
+                # if boat_pos is not None and boat_pos["heading"] is not None:
+                box.put((frame, boat_pos))
         except Exception as error:   # noqa: BLE001 – keep the reader alive
             print(f"Stream read error ({url}): {error}")
             time.sleep(1)
