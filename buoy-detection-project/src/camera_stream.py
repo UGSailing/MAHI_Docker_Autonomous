@@ -9,6 +9,9 @@ as JPEG over MQTT on the same topics the detection pipeline uses
 (detections/video/left and detections/video/right).  No YOLO, no GPS, no
 locks — just frames as fast as the network allows.
 
+A single pairing thread grabs one frame from each camera box and publishes
+them together so left and right are always in sync.
+
 Run alongside main.py:
     python3 stream_preview.py &
     python3 main.py
@@ -42,17 +45,17 @@ LEFT_STREAM_PATH      = os.getenv("LEFT_STREAM_PATH",      "/axis-media/media.am
 # MQTT config
 # ---------------------------------------------------------------------------
 
-MQTT_HOST      = os.getenv("MQTT_HOST",      "172.17.0.1")
-MQTT_PORT      = int(os.getenv("MQTT_PORT",  "1883"))
-MQTT_USER      = os.getenv("MQTT_USER")
-MQTT_PASSWORD  = os.getenv("MQTT_PASSWORD")
+MQTT_HOST     = os.getenv("MQTT_HOST",     "172.17.0.1")
+MQTT_PORT     = int(os.getenv("MQTT_PORT", "1883"))
+MQTT_USER     = os.getenv("MQTT_USER")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 
 VIDEO_TOPICS = {
     "left":  "detections/video/left",
     "right": "detections/video/right",
 }
 
-JPEG_QUALITY = int(os.getenv("PREVIEW_JPEG_QUALITY", "40"))
+JPEG_QUALITY   = int(os.getenv("PREVIEW_JPEG_QUALITY", "40"))
 PREVIEW_WIDTH  = int(os.getenv("PREVIEW_WIDTH",  "640"))
 PREVIEW_HEIGHT = int(os.getenv("PREVIEW_HEIGHT", "360"))
 
@@ -82,13 +85,38 @@ def _open_capture(url: str) -> cv2.VideoCapture:
 
 
 # ---------------------------------------------------------------------------
-# MQTT client (shared across both streamer threads)
+# Single-slot mailbox (same pattern as camera.py LatestFrameBox)
+# Always holds only the newest frame — if the consumer is slow, old frames
+# are overwritten rather than queued, so latency can never accumulate.
+# ---------------------------------------------------------------------------
+
+class LatestFrameBox:
+    def __init__(self) -> None:
+        self._cond = threading.Condition()
+        self._frame: cv2.typing.MatLike | None = None
+
+    def put(self, frame: cv2.typing.MatLike) -> None:
+        with self._cond:
+            self._frame = frame
+            self._cond.notify()
+
+    def get(self) -> cv2.typing.MatLike:
+        with self._cond:
+            while self._frame is None:
+                self._cond.wait()
+            frame, self._frame = self._frame, None
+            return frame
+
+
+# ---------------------------------------------------------------------------
+# MQTT client
 # ---------------------------------------------------------------------------
 
 def _make_mqtt_client() -> mqtt.Client:
     client = mqtt.Client(client_id="stream-preview", clean_session=True)
     if MQTT_USER:
         client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+    # Keep the outgoing queue at 1 so stale frames are never sent.
     client.max_queued_messages_set(1)
     client.reconnect_delay_set(min_delay=1, max_delay=5)
     client.connect(MQTT_HOST, MQTT_PORT, keepalive=30)
@@ -97,14 +125,11 @@ def _make_mqtt_client() -> mqtt.Client:
 
 
 # ---------------------------------------------------------------------------
-# Per-camera streamer thread
+# Per-camera reader thread
 # ---------------------------------------------------------------------------
 
-def _stream(url: str, side: str, client: mqtt.Client) -> None:
-    """Read frames from *url* and publish raw JPEGs on the MQTT video topic."""
-    topic = VIDEO_TOPICS[side]
-    encode_params = [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY]
-
+def _reader(url: str, box: LatestFrameBox) -> None:
+    """Continuously decode frames from *url* and drop them into *box*."""
     while True:
         cap = _open_capture(url)
         try:
@@ -114,15 +139,48 @@ def _stream(url: str, side: str, client: mqtt.Client) -> None:
                 ok, frame = cap.read()
                 if not ok or frame is None:
                     raise RuntimeError("RTSP read failed")
-                resized = cv2.resize(frame, (PREVIEW_WIDTH, PREVIEW_HEIGHT))
-                ok2, jpg = cv2.imencode(".jpg", resized, encode_params)
-                if ok2:
-                    client.publish(topic, payload=jpg.tobytes(), qos=0, retain=False)
+                box.put(frame)
         except Exception as error:  # noqa: BLE001
-            print(f"[stream_preview] {side} error: {error} — retrying in 1 s")
+            print(f"[stream_preview] reader error ({url}): {error} — retrying in 1 s")
         finally:
             cap.release()
         time.sleep(1)
+
+
+# ---------------------------------------------------------------------------
+# Pairing + publish thread
+# ---------------------------------------------------------------------------
+
+def _publisher(
+    left_box:  LatestFrameBox,
+    right_box: LatestFrameBox,
+    client:    mqtt.Client,
+) -> None:
+    """
+    Grab the latest frame from both cameras, encode, and publish together.
+    Because both boxes always hold only the newest frame, left and right are
+    always temporally matched before anything is sent.
+
+    Encoding is done here (not in the reader threads) so the resize+JPEG
+    work happens once per published pair, not once per decoded frame.
+    """
+    encode_params = [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY]
+    target_size   = (PREVIEW_WIDTH, PREVIEW_HEIGHT)
+
+    while True:
+        left_frame  = left_box.get()
+        right_frame = right_box.get()
+
+        for side, frame in (("left", left_frame), ("right", right_frame)):
+            resized = cv2.resize(frame, target_size, interpolation=cv2.INTER_LINEAR)
+            ok, jpg = cv2.imencode(".jpg", resized, encode_params)
+            if ok:
+                client.publish(
+                    VIDEO_TOPICS[side],
+                    payload=jpg.tobytes(),
+                    qos=0,
+                    retain=False,
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -130,18 +188,23 @@ def _stream(url: str, side: str, client: mqtt.Client) -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    client = _make_mqtt_client()
+    client    = _make_mqtt_client()
+    left_box  = LatestFrameBox()
+    right_box = LatestFrameBox()
 
     threads = [
-        threading.Thread(target=_stream, args=(LEFT_STREAM_URL,  "left",  client), daemon=True),
-        threading.Thread(target=_stream, args=(RIGHT_STREAM_URL, "right", client), daemon=True),
+        threading.Thread(target=_reader,    args=(LEFT_STREAM_URL,  left_box),                daemon=True),
+        threading.Thread(target=_reader,    args=(RIGHT_STREAM_URL, right_box),               daemon=True),
+        threading.Thread(target=_publisher, args=(left_box, right_box, client),               daemon=True),
     ]
     for t in threads:
         t.start()
 
-    print("stream_preview running — publishing raw frames to detections/video/left and detections/video/right")
+    print(
+        "stream_preview running — publishing raw frames to "
+        "detections/video/left and detections/video/right"
+    )
 
-    # Keep the main thread alive; threads are daemon so Ctrl-C exits cleanly.
     try:
         while True:
             time.sleep(60)
