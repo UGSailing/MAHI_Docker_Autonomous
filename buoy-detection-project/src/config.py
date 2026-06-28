@@ -6,13 +6,11 @@ STATE_TRANS_DIST = MARGE * 2
 BUOY_MATCH_DISTANCE = 7 #MARGE + 1.5
 
 APRIORI_BUOYLIST = [
-    [(51.14339735730541, 2.7468965058450774)],   # buoy 0 — replace with real a-priori GPS coords
-    [(51.14344451713093, 2.7475114395335662)],   # buoy 1 — replace with real a-priori GPS coords
+    [(51.02420572839191, 3.6986695268166274)],   # buoy 0 — replace with real a-priori GPS coords
+    [(51.02423314764753, 3.69907514700921)],   # buoy 1 — replace with real a-priori GPS coords
 ]
 
 TILT = 0.5
-
-
 
 # padplanning interpolatie:
 
