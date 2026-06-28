@@ -106,9 +106,6 @@ def main() -> None:
         camera.buoy_list.clear()
         camera.buoy_list.extend(APRIORI_BUOYLIST)       
 
-        
-    camera.open_log()
-
     # ------------------------------------------------------------------
     # 2. Start the camera pipeline in a background thread so it doesn't
     #    block the mission loop below.  run_cameras() joins its threads
