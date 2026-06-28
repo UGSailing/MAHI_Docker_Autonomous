@@ -547,6 +547,7 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
     latency over time.
     """
     while True:
+        print("WORKER STARTED")
         # Block until both boxes have a fresh frame.
         left_frame,  left_pos  = left_box.get()
         right_frame, right_pos = right_box.get()
