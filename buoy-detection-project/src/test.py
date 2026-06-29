@@ -18,11 +18,13 @@ MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "set-mqtt-publisher")
 
 
 def main() -> None:
-    client = mqtt.Client(client_id="stream-preview", clean_session=True)
-    client.max_queued_messages_set(1)
-    client.reconnect_delay_set(min_delay=1, max_delay=5)
-    client.connect(MQTT_HOST, MQTT_PORT, keepalive=30)
-    client.loop_start()
+    # client = mqtt.Client(client_id="stream-preview", clean_session=True)
+    # client.max_queued_messages_set(1)
+    # client.reconnect_delay_set(min_delay=1, max_delay=5)
+    # client.connect(MQTT_HOST, MQTT_PORT, keepalive=30)
+    # client.loop_start()
+
+    print("STARTED")
 
     temp = get_mqtt.get_mahi_temperature()
     print(temp)

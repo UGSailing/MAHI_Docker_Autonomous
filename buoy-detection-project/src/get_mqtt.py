@@ -147,6 +147,8 @@ def _parse_pmic_temperature(status: dict) -> Optional[float]:
     not a live reading — so we read the top-level key explicitly rather than
     searching, to avoid ever picking up the wrong value.
     """
+    print("TESTTT")
+    print(status)
     value = status.get("Temperature")
     if isinstance(value, (int, float)) and math.isfinite(value):
         return float(value)
@@ -367,6 +369,7 @@ def get_humidity() -> Optional[float]:
 def get_mahi_temperature() -> Optional[float]:
     """Latest Mahi PMIC temperature (°C) from internal/pmic/status, or None."""
     _ensure_client_started()
+    print("GET TEMP")
     with _state.lock:
         return _state.mahi_temperature
 
