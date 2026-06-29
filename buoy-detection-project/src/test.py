@@ -7,6 +7,7 @@ publishing annotated frames and detection coordinates over MQTT
 """
 
 import get_mqtt
+import mqtt
 
 
 def main() -> None:
