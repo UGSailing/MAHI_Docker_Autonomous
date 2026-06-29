@@ -7,7 +7,7 @@ publishing annotated frames and detection coordinates over MQTT
 """
 
 import get_mqtt
-import mqtt
+import paho.mqtt.client as mqtt
 
 
 def main() -> None:
