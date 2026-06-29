@@ -40,6 +40,7 @@ GNSS_LEFT_TOPIC  = "sense-3C6D66019257/gnss/Left/pvt"
 GNSS_RIGHT_TOPIC = "sense-3C6D66019257/gnss/Right/pvt"
 HEADING_TOPIC    = "sense-3C6D66019257/nmea/Left"
 CAN_TOPIC        = "can/ugent/tx"
+PMIC_STATUS_TOPIC = "internal/pmic/status"
 
 ECU_HEARTBEAT_CAN_ID = 0x11
 SET_ANGLE_CAN_ID     = 0x204
@@ -77,6 +78,7 @@ class _State:
         self.angle: Optional[float]          = None
         self.temperature: Optional[float]    = None
         self.humidity: Optional[float]       = None
+        self.mahi_temperature: Optional[float] = None
 
 
 _state = _State()
@@ -137,6 +139,20 @@ def _parse_hdt_heading(payload: str) -> Optional[float]:
     return None
 
 
+def _parse_pmic_temperature(status: dict) -> Optional[float]:
+    """Pull the board temperature (°C) out of a PMIC status payload.
+
+    The reading lives in the top-level "Temperature" field. Note this is
+    distinct from DeviceInfo.TempCalib, which holds calibration constants,
+    not a live reading — so we read the top-level key explicitly rather than
+    searching, to avoid ever picking up the wrong value.
+    """
+    value = status.get("Temperature")
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return float(value)
+    return None
+
+
 def _on_message(_client: mqtt.Client, _userdata, message: mqtt.MQTTMessage) -> None:
     if message.topic in (GNSS_LEFT_TOPIC, GNSS_RIGHT_TOPIC):
         try:
@@ -159,6 +175,19 @@ def _on_message(_client: mqtt.Client, _userdata, message: mqtt.MQTTMessage) -> N
         if heading is not None:
             with _state.lock:
                 _state.heading = heading
+        return
+
+    if message.topic == PMIC_STATUS_TOPIC:
+        try:
+            status = json.loads(message.payload.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return
+        if not isinstance(status, dict):
+            return
+        temperature = _parse_pmic_temperature(status)
+        if temperature is not None:
+            with _state.lock:
+                _state.mahi_temperature = temperature
         return
 
     if message.topic == CAN_TOPIC:
@@ -211,6 +240,7 @@ def _ensure_client_started() -> None:
             c.subscribe(GNSS_LEFT_TOPIC,  qos=0)
             c.subscribe(GNSS_RIGHT_TOPIC, qos=0)
             c.subscribe(HEADING_TOPIC,    qos=0)
+            c.subscribe(PMIC_STATUS_TOPIC, qos=0)
             c.subscribe(CAN_TOPIC,        qos=0)
 
         client.on_connect = on_connect
@@ -329,6 +359,13 @@ def get_humidity() -> Optional[float]:
         return _state.humidity
 
 
+def get_mahi_temperature() -> Optional[float]:
+    """Latest Mahi PMIC temperature (°C) from internal/pmic/status, or None."""
+    _ensure_client_started()
+    with _state.lock:
+        return _state.mahi_temperature
+
+
 if __name__ == "__main__":
     import time
 
@@ -338,12 +375,13 @@ if __name__ == "__main__":
         while True:
             time.sleep(2)
             print(
-                "position=",    get_boat_position(),
-                "velocity=",    get_boat_velocity(),
-                "rpm=",         get_rpm(),
-                "angle=",       get_angle(),
-                "temp=",        get_temperature(),
-                "humidity=",    get_humidity(),
+                "position=",         get_boat_position(),
+                "velocity=",         get_boat_velocity(),
+                "rpm=",              get_rpm(),
+                "angle=",            get_angle(),
+                "temp=",             get_temperature(),
+                "humidity=",         get_humidity(),
+                "mahi_temp=",        get_mahi_temperature(),
             )
     except KeyboardInterrupt:
         pass
