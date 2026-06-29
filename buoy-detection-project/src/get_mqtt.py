@@ -184,6 +184,7 @@ def _on_message(_client: mqtt.Client, _userdata, message: mqtt.MQTTMessage) -> N
             return
         if not isinstance(status, dict):
             return
+        print(status)
         temperature = _parse_pmic_temperature(status)
         if temperature is not None:
             with _state.lock:
