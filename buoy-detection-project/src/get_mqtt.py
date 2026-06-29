@@ -147,8 +147,6 @@ def _parse_pmic_temperature(status: dict) -> Optional[float]:
     not a live reading — so we read the top-level key explicitly rather than
     searching, to avoid ever picking up the wrong value.
     """
-    print("TESTTT")
-    print(status)
     value = status.get("Temperature")
     if isinstance(value, (int, float)) and math.isfinite(value):
         return float(value)
@@ -182,15 +180,10 @@ def _on_message(_client: mqtt.Client, _userdata, message: mqtt.MQTTMessage) -> N
     if message.topic == PMIC_STATUS_TOPIC:
         try:
             status = json.loads(message.payload.decode("utf-8"))
-            print("STATUS")
-            print(status)
         except (json.JSONDecodeError, UnicodeDecodeError):
-            print("ERROR1")
             return
         if not isinstance(status, dict):
-            print("ERROR2")
             return
-        print(status)
         temperature = _parse_pmic_temperature(status)
         if temperature is not None:
             with _state.lock:
@@ -369,7 +362,6 @@ def get_humidity() -> Optional[float]:
 def get_mahi_temperature() -> Optional[float]:
     """Latest Mahi PMIC temperature (°C) from internal/pmic/status, or None."""
     _ensure_client_started()
-    print("GET TEMP")
     with _state.lock:
         return _state.mahi_temperature
 
@@ -383,6 +375,12 @@ if __name__ == "__main__":
         while True:
             time.sleep(2)
             print(
+                "position=",         get_boat_position(),
+                "velocity=",         get_boat_velocity(),
+                "rpm=",              get_rpm(),
+                "angle=",            get_angle(),
+                "temp=",             get_temperature(),
+                "humidity=",         get_humidity(),
                 "mahi_temp=",        get_mahi_temperature(),
             )
     except KeyboardInterrupt:

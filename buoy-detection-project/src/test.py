@@ -25,9 +25,10 @@ def main() -> None:
     # client.loop_start()
 
     print("STARTED")
-
-    temp = get_mqtt.get_mahi_temperature()
-    print(temp)
+    while True:
+        time.sleep(2)
+        temp = get_mqtt.get_mahi_temperature()
+        print(temp)
 
     
     
