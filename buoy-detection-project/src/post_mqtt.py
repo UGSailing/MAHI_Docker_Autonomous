@@ -22,6 +22,7 @@ import os
 import threading
 import time
 from typing import Optional
+import base64
 
 import paho.mqtt.client as mqtt
 
@@ -43,6 +44,7 @@ _client: Optional[mqtt.Client] = None
 _client_lock = threading.Lock()
 
 CROSSLINE_TOPIC = "navigation/crossline"
+CAN_RX_TOPIC = "can/ugent/rx"
 
 
 def _ensure_client_started() -> mqtt.Client:
@@ -179,3 +181,24 @@ def publish_path(waypoints: list[tuple[float, float]]) -> None:
     )
     if info.rc != mqtt.MQTT_ERR_SUCCESS:
         print(f"MQTT publish failed for path: rc={info.rc}")
+
+
+def publish_can_message(can_id: int, data_bytes: bytes) -> None:
+    """Publish a CAN frame to can/ugent/rx for transmission onto the bus.
+
+    data_bytes is base64-encoded because raw bytes aren't JSON-safe:
+
+        {"can_id": 1536, "data": "AAECAwQF"}
+
+    QoS 1 so the frame reaches the broker at-least-once, but retain=False:
+    unlike the path/crossline publishes, a stale CAN command replayed to a
+    late-connecting subscriber could actuate something unintended.
+    """
+    payload = json.dumps({
+        "can_id": can_id,
+        "data": base64.b64encode(data_bytes).decode(),
+    })
+    client = _ensure_client_started()
+    info = client.publish(CAN_RX_TOPIC, payload=payload, qos=1, retain=False)
+    if info.rc != mqtt.MQTT_ERR_SUCCESS:
+        print(f"MQTT publish failed for CAN message: rc={info.rc}")
