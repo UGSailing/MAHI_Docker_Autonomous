@@ -1,4 +1,5 @@
 import post_mqtt
+import struct
 
 TEMP_CAN_ID = 0x123  # ← your temperature frame's arbitration ID
 
