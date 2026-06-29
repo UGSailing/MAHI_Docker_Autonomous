@@ -383,12 +383,6 @@ if __name__ == "__main__":
         while True:
             time.sleep(2)
             print(
-                "position=",         get_boat_position(),
-                "velocity=",         get_boat_velocity(),
-                "rpm=",              get_rpm(),
-                "angle=",            get_angle(),
-                "temp=",             get_temperature(),
-                "humidity=",         get_humidity(),
                 "mahi_temp=",        get_mahi_temperature(),
             )
     except KeyboardInterrupt:
