@@ -180,9 +180,13 @@ def _on_message(_client: mqtt.Client, _userdata, message: mqtt.MQTTMessage) -> N
     if message.topic == PMIC_STATUS_TOPIC:
         try:
             status = json.loads(message.payload.decode("utf-8"))
+            print("STATUS")
+            print(status)
         except (json.JSONDecodeError, UnicodeDecodeError):
+            print("ERROR1")
             return
         if not isinstance(status, dict):
+            print("ERROR2")
             return
         print(status)
         temperature = _parse_pmic_temperature(status)
