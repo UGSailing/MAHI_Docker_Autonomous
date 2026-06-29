@@ -9,11 +9,13 @@ publishing annotated frames and detection coordinates over MQTT
 import get_mqtt
 import os
 import paho.mqtt.client as mqtt
+import post_can
+import time
 
 def main() -> None:
     while True:
         time.sleep(1)
-        publish_temperature(get_mqtt.get_mahi_temperature())
+        post_can.publish_temperature(get_mqtt.get_mahi_temperature())
 
     
     
