@@ -1,8 +1,7 @@
 import math
 
-from config import APRIORI_BUOYLIST
-from config import TILT
-import post_mqtt
+from config import APRIORI_BUOYLIST, TILT
+import communication.post_mqtt as post_mqtt
 
 
 buoy0_lat, buoy0_lon = APRIORI_BUOYLIST[0][0]

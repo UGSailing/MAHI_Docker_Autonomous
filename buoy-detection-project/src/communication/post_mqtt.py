@@ -28,8 +28,6 @@ import paho.mqtt.client as mqtt
 
 MQTT_HOST = os.getenv("MQTT_HOST", "172.17.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_USER = os.getenv("MQTT_USER")  # optional
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")  # optional
 MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "set-mqtt-publisher")
 
 VIDEO_TOPICS = {
@@ -57,8 +55,6 @@ def _ensure_client_started() -> mqtt.Client:
             return _client
 
         client = mqtt.Client(client_id=MQTT_CLIENT_ID, clean_session=True)
-        if MQTT_USER:
-            client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
         # Keep the internal outgoing queue tiny: we never want stale
         # frames/detections sitting around waiting to be sent. If the
         # broker can't keep up we'd rather drop at the application level

@@ -20,7 +20,7 @@ Changes vs. previous version
 """
 
 import math
-import get_mqtt
+import communication.get_mqtt as get_mqtt
 from typing import List, Optional, Tuple
 
 import numpy as np

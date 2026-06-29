@@ -32,8 +32,6 @@ import paho.mqtt.client as mqtt
 
 MQTT_HOST = os.getenv("MQTT_HOST", "172.17.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_USER = os.getenv("MQTT_USER")  # optional
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")  # optional
 MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "get-mqtt-client")
 
 GNSS_LEFT_TOPIC  = "sense-3C6D66019257/gnss/Left/pvt"
@@ -232,8 +230,6 @@ def _ensure_client_started() -> None:
             return
 
         client = mqtt.Client(client_id=MQTT_CLIENT_ID, clean_session=True)
-        if MQTT_USER:
-            client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
         client.on_message = _on_message
 
         def on_connect(c: mqtt.Client, _userdata, _flags, _rc) -> None:
