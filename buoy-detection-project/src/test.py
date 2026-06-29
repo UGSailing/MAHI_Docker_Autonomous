@@ -7,6 +7,7 @@ publishing annotated frames and detection coordinates over MQTT
 """
 
 import get_mqtt
+import os
 import paho.mqtt.client as mqtt
 
 MQTT_HOST = os.getenv("MQTT_HOST", "172.17.0.1")
