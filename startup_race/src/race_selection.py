@@ -9,7 +9,7 @@ import check_camera
 import check_gnss
 import execute_race
 
-MQTT_BROKER = "localhost"
+MQTT_BROKER = "127.0.0.1"
 MQTT_PORT = 1883
 MQTT_TOPIC_TX = "can/ugent/tx"
 MQTT_TOPIC_RX = "can/ugent/rx"
