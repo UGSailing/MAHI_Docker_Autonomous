@@ -6,7 +6,7 @@ import time
 import paho.mqtt.client as mqtt
 
 import check_camera
-import check_gnss
+import check_gnss_2
 import execute_race
 
 MQTT_BROKER = "127.0.0.1"
@@ -17,7 +17,6 @@ MQTT_TOPIC_RX = "can/ugent/rx"
 ECU_CAN_ID = 0x211  # 529 — autonomous state + selected mission
 MAHI_STATE_CAN_ID = 0x63  # 99 — MAHI autonomous state
 MAHI_ERROR_FLAGS_CAN_ID = 0x13  # 19 — autonomous systems error flags
-
 MISSION_NONE = 0xFF
 
 # MAHI autonomous states (README_ECU.md)
@@ -59,8 +58,8 @@ def on_message(client, userdata, msg):
 
         raw_bytes = base64.b64decode(payload["data"])
         with state_lock:
-            ecu_state = raw_bytes[-1]
-            ecu_mission = raw_bytes[-2] if len(raw_bytes) >= 2 else MISSION_NONE
+            ecu_state = raw_bytes[-2]
+            ecu_mission = raw_bytes[-1] if len(raw_bytes) >= 2 else MISSION_NONE
         print(
             f"ECU message: state={ecu_state}, mission={ecu_mission} "
             f"(0b{ecu_state:08b}, 0b{ecu_mission:08b})"
@@ -72,8 +71,8 @@ def on_message(client, userdata, msg):
 def run_system_checks():
     global state, error_flags, checks_started
 
-    gnss_ok = check_gnss.check()
-    camera_ok = check_camera.check()
+    gnss_ok = check_gnss_2.mock_check()
+    camera_ok = check_camera.mock_check()
     # Docker shell / other software — not yet a separate module
     other_ok = True
 
@@ -129,6 +128,7 @@ def state_machine_loop():
             with state_lock:
                 state = STATE_CHECK_SYSTEMS
                 checks_started = True
+            time.sleep(4)
             print(f"AMS enabled, state updated to {STATE_CHECK_SYSTEMS}")
             threading.Thread(target=run_system_checks, daemon=True).start()
 
@@ -167,16 +167,22 @@ def state_machine_loop():
                 race_started = False
                 selected_mission = MISSION_NONE
             print(f"ECU reset after error, state updated to {STATE_WAITING_AMS}")
-
+        elif current_ecu_state == 255:
+            with state_lock:
+                state = STATE_ERROR
+                error_flags = 0
+                checks_started = False
+                race_started = False
+                selected_mission = MISSION_NONE
         time.sleep(0.1)
 
 
 def publish_can_message(client, can_id: int, data_bytes: bytes):
     payload = {
-        "can_id": can_id,
-        "data": base64.b64encode(data_bytes).decode(),
+        "can_id":can_id,
+        "data":base64.b64encode(data_bytes).decode(),
     }
-    client.publish(MQTT_TOPIC_RX, json.dumps(payload))
+    client.publish(MQTT_TOPIC_RX,json.dumps(payload))
 
 
 def publish_loop(client):
@@ -185,12 +191,12 @@ def publish_loop(client):
             current_state = state
             current_flags = error_flags
 
-        state_bytes = bytes([0, 0, 0, 0, 0, 0, 0, current_state])
-        publish_can_message(client, MAHI_STATE_CAN_ID, state_bytes)
+        state_bytes = bytes([current_state,0, 0, 0, 0, 0, 0, 0])
+        publish_can_message(client,MAHI_STATE_CAN_ID,state_bytes)
         print(f"Published: can_id={MAHI_STATE_CAN_ID}, state={current_state}")
 
         if current_state in (STATE_CHECK_SYSTEMS, STATE_SYSTEMS_OK, STATE_ERROR):
-            flag_bytes = bytes([0, 0, 0, 0, 0, 0, 0, current_flags])
+            flag_bytes = bytes([current_flags,0, 0, 0, 0, 0, 0, 0])
             publish_can_message(client, MAHI_ERROR_FLAGS_CAN_ID, flag_bytes)
             print(
                 f"Published: can_id={MAHI_ERROR_FLAGS_CAN_ID}, "
@@ -201,7 +207,7 @@ def publish_loop(client):
 
 
 def main():
-    client = mqtt.Client()
+    client = mqtt.Client(client_id="client")
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(MQTT_BROKER, MQTT_PORT, 60)

@@ -1,7 +1,7 @@
 import post_mqtt
 import struct
 
-TEMP_CAN_ID = 0x123  # ← your temperature frame's arbitration ID
+TEMP_CAN_ID = 0x023  # ← your temperature frame's arbitration ID
 
 def publish_temperature(celsius: float) -> None:
     if celsius is None:

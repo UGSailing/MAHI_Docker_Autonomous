@@ -38,12 +38,12 @@ def is_past_waypoint_old(prev_waypoint, next_waypoint, boat_pos):
     """
     Returns False if boat_pos is on the prev_waypoint-side of the perpendicular line through next_waypoint,
     Returns True if boat_pos is past next_waypoint (on the far side).
-    
+
     for prev and next waypoint this is ((lat,lon),speed), boat_pos (lat,lon, ...)
     """
     prev_waypoint = prev_waypoint[0]
     next_waypoint = next_waypoint[0]
-    
+
     dx = next_waypoint[0] - prev_waypoint[0]
     dy = next_waypoint[1] - prev_waypoint[1]
 
@@ -83,7 +83,7 @@ def replan(buoy_positions, i, waypoints, start_position, start_heading_deg):
     next_waypoint = waypoints[i]
     set_waypoint(waypoints[i + INDEX_LOOK_AHEAD])
     return waypoints, i, prev_waypoint, next_waypoint
-  
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -97,9 +97,9 @@ def main() -> None:
     # ------------------------------------------------------------------
     with camera.buoy_list_lock:
         camera.buoy_list.clear()
-        camera.buoy_list.extend(APRIORI_BUOYLIST)       
+        camera.buoy_list.extend(APRIORI_BUOYLIST)
 
-        
+
     camera.open_log()
 
     # ------------------------------------------------------------------
@@ -112,7 +112,7 @@ def main() -> None:
 
     # Give the RTSP streams and YOLO model time to warm up.
     time.sleep(10)
-
+    
     initial_boat_position = get_mqtt.get_boat_position()
     initial_start_position = (initial_boat_position['latitude'], initial_boat_position['longitude'])
     initial_start_heading = initial_boat_position['heading'] or 0
@@ -156,7 +156,7 @@ def main() -> None:
     sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
     set_waypoint(sail_waypoint)
 
-    
+
     near_B0 = False
     near_B1 = False
 
@@ -174,9 +174,9 @@ def main() -> None:
                             boat_pos["longitude"], buoy0_lon)
         dist_B1 = haversine(boat_pos["latitude"], buoy1_lat,
                             boat_pos["longitude"], buoy1_lon)
-       
+
         if not near_B0 and dist_B0 < STATE_TRANS_DIST:
-            near_B0, near_B1 = True, False           # the true/false setting is correct like this (when we come near the second buoy we know we're away from the first one and vice versa), dont change that @Robin's Claude 
+            near_B0, near_B1 = True, False           # the true/false setting is correct like this (when we come near the second buoy we know we're away from the first one and vice versa), dont change that @Robin's Claude
             waypoints, i, prev_waypoint, next_waypoint = replan(
                 buoy_positions, i, waypoints, initial_start_position, initial_start_heading
             )
@@ -205,7 +205,7 @@ def main() -> None:
             set_waypoint(sail_waypoint)
 
     stop_navigation()
-            
+
 
 if __name__ == "__main__":
     main()
