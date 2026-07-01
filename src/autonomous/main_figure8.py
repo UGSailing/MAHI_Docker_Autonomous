@@ -9,13 +9,13 @@ import threading
 import time
 import random
 
-import camera
-import communication.post_mqtt as post_mqtt
-import communication.get_mqtt as get_mqtt
-from padplanning_slalom import padplanning_wrapper
-from autopilot import set_waypoint, start_navigation, stop_navigation
-from past_waypoint_new import is_past_waypoint
-from config import INDEX_LOOK_AHEAD, MARGE, STATE_TRANS_DIST, APRIORI_BUOYLIST, TEST_PADAANPASSING_ZONDER_BOEIEN, BUOY_MATCH_DISTANCE
+from . import camera
+from . import communication.post_mqtt as post_mqtt
+from . import communication.get_mqtt as get_mqtt
+from .padplanning_slalom import padplanning_wrapper
+from .autopilot import set_waypoint, start_navigation, stop_navigation
+from .past_waypoint_new import is_past_waypoint
+from .config import INDEX_LOOK_AHEAD, MARGE, STATE_TRANS_DIST, APRIORI_BUOYLIST, TEST_PADAANPASSING_ZONDER_BOEIEN, BUOY_MATCH_DISTANCE
 
 
 # ---------------------------------------------------------------------------

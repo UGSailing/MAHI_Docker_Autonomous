@@ -10,18 +10,17 @@ import time
 import random
 
 from . import camera
-import communication.post_mqtt as post_mqtt
-import communication.get_mqtt as get_mqtt
-from padplanning_sprint import padplanning_wrapper
-# from autopilot import sail_path
-from autopilot import set_waypoint, start_navigation, stop_navigation
-from config import INDEX_LOOK_AHEAD
-from config import MARGE
-from config import STATE_TRANS_DIST
-from config import APRIORI_BUOYLIST
-from config import TEST_PADAANPASSING_ZONDER_BOEIEN
-from config import BUOY_MATCH_DISTANCE
-from past_waypoint_new import is_past_waypoint
+from . import communication.post_mqtt as post_mqtt
+from . import communication.get_mqtt as get_mqtt
+from .padplanning_sprint import padplanning_wrapper
+from .autopilot import set_waypoint, start_navigation, stop_navigation
+from .config import INDEX_LOOK_AHEAD
+from .config import MARGE
+from .config import STATE_TRANS_DIST
+from .config import APRIORI_BUOYLIST
+from .config import TEST_PADAANPASSING_ZONDER_BOEIEN
+from .config import BUOY_MATCH_DISTANCE
+from .past_waypoint_new import is_past_waypoint
 
 
 # ---------------------------------------------------------------------------

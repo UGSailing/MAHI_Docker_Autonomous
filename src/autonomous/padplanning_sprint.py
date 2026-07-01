@@ -28,12 +28,12 @@ waarbij `buoys` een lijst met één (lon, lat)-tupel is.
 """
 
 import math
-import communication.get_mqtt as get_mqtt
+import .communication.get_mqtt as get_mqtt
 from typing import List, Optional, Tuple
 
 import numpy as np
 
-from config import (
+from .config import (
     N_SLALOM_PTS,
     N_ARC_PTS,
     FAST_SPEED,
