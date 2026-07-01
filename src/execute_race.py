@@ -19,4 +19,4 @@ def run(mission_id: int) -> bool:
 
 
 if __name__ == "__main__":
-    sprint.run()
+    figure8.run()

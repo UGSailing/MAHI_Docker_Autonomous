@@ -27,8 +27,6 @@ WAYPOINT_DT = 1. # secondes - tijdsspacing tss waypoints
 METER_LOOK_AHEAD  = 6.0                                    # m
 INDEX_LOOK_AHEAD  = round(METER_LOOK_AHEAD / WAYPOINT_DISTANCE)
 
-
-
 # speed & ramp:
 
 FAST_SPEED = 4
