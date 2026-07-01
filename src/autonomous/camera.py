@@ -507,10 +507,8 @@ def process_pair(
         left_result    – YOLO result for the left frame (for annotation reuse).
         right_result   – YOLO result for the right frame (for annotation reuse).
     """
-    print("Before pos")
     if boat_pos is None:
         return False, buoy_positions, left_result, right_result
-    print("After pos")
     latitude  = float(boat_pos["latitude"])
     longitude = float(boat_pos["longitude"])
     heading   = boat_pos["heading"] or 0
@@ -658,11 +656,9 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
     latency over time.
     """
     while True:
-        print("Running")
         # Block until both boxes have a fresh frame.
         left_frame,  left_pos  = left_box.get()
         right_frame, right_pos = right_box.get()
-        print("Got frames")
 
         # Use the left camera's position as the authoritative snapshot for
         # this pair (they are captured within milliseconds of each other).

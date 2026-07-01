@@ -120,7 +120,7 @@ def run() -> None:
 
     initial_boat_position = get_mqtt.get_boat_position()
     initial_start_position = (initial_boat_position['latitude'], initial_boat_position['longitude'])
-    initial_start_heading = initial_boat_position['heading']
+    initial_start_heading = initial_boat_position['heading'] or 60
 
     # ------------------------------------------------------------------
     # 3. Take a thread-safe snapshot of buoy_positions for path planning.
