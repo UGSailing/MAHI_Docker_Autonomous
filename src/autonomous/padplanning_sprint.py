@@ -28,7 +28,7 @@ waarbij `buoys` een lijst met één (lon, lat)-tupel is.
 """
 
 import math
-import .communication.get_mqtt as get_mqtt
+from .communication import get_mqtt
 from typing import List, Optional, Tuple
 
 import numpy as np

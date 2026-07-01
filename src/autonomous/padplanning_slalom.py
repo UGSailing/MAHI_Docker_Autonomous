@@ -21,7 +21,7 @@ Changes vs. previous version
 """
 
 import math
-import .communication.get_mqtt as get_mqtt
+from .communication import get_mqtt
 from typing import List, Optional, Tuple
 
 import numpy as np

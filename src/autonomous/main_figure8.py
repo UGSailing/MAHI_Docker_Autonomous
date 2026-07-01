@@ -10,8 +10,8 @@ import time
 import random
 
 from . import camera
-from . import communication.post_mqtt as post_mqtt
-from . import communication.get_mqtt as get_mqtt
+from .communication import post_mqtt
+from .communication import get_mqtt
 from .padplanning_slalom import padplanning_wrapper
 from .autopilot import set_waypoint, start_navigation, stop_navigation
 from .past_waypoint_new import is_past_waypoint

@@ -10,7 +10,7 @@ import time
 import math
 import paho.mqtt.client as mqtt
 import threading
-from . import communication.post_mqtt as post_mqtt
+from .communication import post_mqtt
 
 
 _lock = threading.Lock()

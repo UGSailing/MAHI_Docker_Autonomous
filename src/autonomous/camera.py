@@ -47,8 +47,8 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-from . import communication.post_mqtt as post_mqtt
-from . import communication.get_mqtt as get_mqtt
+from .communication import post_mqtt
+from .communication import get_mqtt
 
 from .config import BUOY_MATCH_DISTANCE
 
