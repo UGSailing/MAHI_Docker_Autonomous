@@ -1,6 +1,6 @@
 import time
 import autonomous.main_sprint as sprint
-import autonomous.main_figure8 as figure8
+import src.autonomous.main as figure8
 
 def run(mission_id: int) -> bool:
     if (mission_id == 0):

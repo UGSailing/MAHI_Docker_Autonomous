@@ -1,3 +1,16 @@
+from enum import Enum
+
+class Pad(Enum):
+    SPRINT = "sprint"
+    DOKKEN = "dokken"
+    SLALOM = "slalom"
+
+CURRENT_PAD = Pad.SPRINT
+
+
+
+
+
 TEST_PADAANPASSING_ZONDER_BOEIEN = True # dit zal gwn het pad eens aanpassen wnr hij in de buurt van eerste boei komt, om te testen hoe boot reageert zonder boeien nodig te hebben
 
 
@@ -24,15 +37,12 @@ WAYPOINT_DT = 1. # secondes - tijdsspacing tss waypoints
 
 # look ahead (best afstellen in meters)
 
-METER_LOOK_AHEAD  = 6.0                                    # m
-INDEX_LOOK_AHEAD  = round(METER_LOOK_AHEAD / WAYPOINT_DISTANCE)
-
+TIME_LOOK_AHEAD = 3 # s
+INDEX_LOOK_AHEAD = round(TIME_LOOK_AHEAD / WAYPOINT_DT)
 
 
 # speed & ramp:
 
 FAST_SPEED = 4
 SLOW_SPEED = 2
-N_RAMP_METERS = 5.
-N_RAMP_WAYPOINTS  = round(N_RAMP_METERS / WAYPOINT_DISTANCE)     # intermediate speed steps at slow↔fast transitions
 RAMP_ACCELERATION = .3

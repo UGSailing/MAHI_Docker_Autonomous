@@ -12,15 +12,18 @@ import random
 from . import camera
 from .communication import post_mqtt
 from .communication import get_mqtt
-from .padplanning_sprint import padplanning_wrapper
 from .autopilot import set_waypoint, start_navigation, stop_navigation
-from .config import INDEX_LOOK_AHEAD
-from .config import MARGE
-from .config import STATE_TRANS_DIST
-from .config import APRIORI_BUOYLIST
-from .config import TEST_PADAANPASSING_ZONDER_BOEIEN
-from .config import BUOY_MATCH_DISTANCE
 from .past_waypoint_new import is_past_waypoint
+from .config import INDEX_LOOK_AHEAD, MARGE, STATE_TRANS_DIST, APRIORI_BUOYLIST, TEST_PADAANPASSING_ZONDER_BOEIEN, BUOY_MATCH_DISTANCE, CURRENT_PAD, Pad
+ 
+match CURRENT_PAD:
+    case Pad.SPRINT:
+        from .padplanning_sprint import padplanning_wrapper
+    case Pad.DOKKEN:
+        from .padplanning_dokken import padplanning_wrapper
+    case Pad.SLALOM:
+        from .padplanning_slalom import padplanning_wrapper
+
 
 
 # ---------------------------------------------------------------------------
@@ -43,12 +46,12 @@ def is_past_waypoint_old(prev_waypoint, next_waypoint, boat_pos):
     """
     Returns False if boat_pos is on the prev_waypoint-side of the perpendicular line through next_waypoint,
     Returns True if boat_pos is past next_waypoint (on the far side).
-    
+
     for prev and next waypoint this is ((lat,lon),speed), boat_pos (lat,lon, ...)
     """
     prev_waypoint = prev_waypoint[0]
     next_waypoint = next_waypoint[0]
-    
+
     dx = next_waypoint[0] - prev_waypoint[0]
     dy = next_waypoint[1] - prev_waypoint[1]
 
@@ -88,7 +91,7 @@ def replan(buoy_positions, i, waypoints, start_position, start_heading_deg):
     next_waypoint = waypoints[i]
     set_waypoint(waypoints[i + INDEX_LOOK_AHEAD])
     return waypoints, i, prev_waypoint, next_waypoint
-  
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -102,9 +105,9 @@ def run() -> None:
     # ------------------------------------------------------------------
     with camera.buoy_list_lock:
         camera.buoy_list.clear()
-        camera.buoy_list.extend(APRIORI_BUOYLIST)       
+        camera.buoy_list.extend(APRIORI_BUOYLIST)
 
-        
+
     camera.open_log()
 
     # ------------------------------------------------------------------
@@ -117,10 +120,10 @@ def run() -> None:
 
     # Give the RTSP streams and YOLO model time to warm up.
     time.sleep(3)
-
+    
     initial_boat_position = get_mqtt.get_boat_position()
     initial_start_position = (initial_boat_position['latitude'], initial_boat_position['longitude'])
-    initial_start_heading = initial_boat_position['heading']
+    initial_start_heading = initial_boat_position['heading'] or 0
 
     # ------------------------------------------------------------------
     # 3. Take a thread-safe snapshot of buoy_positions for path planning.
@@ -142,6 +145,8 @@ def run() -> None:
 
     with camera.buoy_list_lock:
         buoy0_lat, buoy0_lon = buoy_positions[0][0]
+        if CURRENT_PAD == Pad.SLALOM:
+            buoy1_lat, buoy1_lon = buoy_positions[1][0]
 
 
     R_EARTH = 6_371_000.0
@@ -153,14 +158,17 @@ def run() -> None:
             buoy0_lon + 4 * BUOY_MATCH_DISTANCE * (random.random()-.5) / m_per_deg_lon
         )]
 
+
     i = 1
     prev_waypoint = waypoints[i-1]
     next_waypoint = waypoints[i]
     sail_waypoint = waypoints[i + INDEX_LOOK_AHEAD]
     set_waypoint(sail_waypoint)
 
-    
-    passed_B0 = False
+
+    near_B0 = False
+    near_B1 = False
+
 
 
 
@@ -173,13 +181,30 @@ def run() -> None:
 
         dist_B0 = haversine(boat_pos["latitude"], buoy0_lat,
                             boat_pos["longitude"], buoy0_lon)
-       
-        if not passed_B0 and dist_B0 < STATE_TRANS_DIST:
-            passed_B0 = True
+        if CURRENT_PAD == Pad.SLALOM:
+            dist_B1 = haversine(boat_pos["latitude"], buoy1_lat,
+                                boat_pos["longitude"], buoy1_lon)
+
+        if not near_B0 and dist_B0 < STATE_TRANS_DIST:
+            near_B0, near_B1 = True, False           # the true/false setting is correct like this (when we come near the second buoy we know we're away from the first one and vice versa), dont change that @Robin's Claude
             waypoints, i, prev_waypoint, next_waypoint = replan(
                 buoy_positions, i, waypoints, initial_start_position, initial_start_heading
             )
+            if CURRENT_PAD == Pad.SLALOM:
+                if TEST_PADAANPASSING_ZONDER_BOEIEN:
+                    buoy_positions[1] += [(
+                        buoy1_lat + 4 * BUOY_MATCH_DISTANCE * (random.random()-.5) / m_per_deg_lat,
+                        buoy1_lon + 4 * BUOY_MATCH_DISTANCE * (random.random()-.5) / m_per_deg_lon
+                    )]
 
+        elif CURRENT_PAD == Pad.SLALOM:
+            if not near_B1 and dist_B1 < STATE_TRANS_DIST:
+                near_B0, near_B1 = False, True
+                waypoints, i, prev_waypoint, next_waypoint = replan(
+                    buoy_positions, i, waypoints, initial_start_position, initial_start_heading
+                )
+                if TEST_PADAANPASSING_ZONDER_BOEIEN:
+                    buoy_positions[0] = [(buoy0_lat,buoy0_lon)]
 
 
         if is_past_waypoint(prev_waypoint,next_waypoint,boat_pos):
@@ -192,7 +217,7 @@ def run() -> None:
             set_waypoint(sail_waypoint)
 
     stop_navigation()
-            
+
 
 if __name__ == "__main__":
-    main()
+    run()
