@@ -10,9 +10,8 @@ import time
 import random
 
 import camera
-import get_mqtt
-import post_mqtt
-from padplanning import padplanning_8
+import communication.post_mqtt as post_mqtt
+import communication.get_mqtt as get_mqtt
 from padplanning_sprint import padplanning_wrapper
 # from autopilot import sail_path
 from autopilot import set_waypoint, start_navigation, stop_navigation
