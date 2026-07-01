@@ -534,7 +534,7 @@ def process_pair(
                     conf=0.5,
                     device=MODEL_DEVICE,
                     half=USE_HALF,
-                    verbose=False,
+                    verbose=True,
                 )
                 left_result, right_result = batch_results[0], batch_results[1]
             else:
@@ -544,12 +544,12 @@ def process_pair(
                 if left_result is None:
                     left_result = model(
                         left_frame, conf=0.5, device=MODEL_DEVICE,
-                        half=USE_HALF, verbose=False,
+                        half=USE_HALF, verbose=True,
                     )[0]
                 if right_result is None:
                     right_result = model(
                         right_frame, conf=0.5, device=MODEL_DEVICE,
-                        half=USE_HALF, verbose=False,
+                        half=USE_HALF, verbose=True,
                     )[0]
 
     # Convert each buoy's a-priori position (first history entry) to
