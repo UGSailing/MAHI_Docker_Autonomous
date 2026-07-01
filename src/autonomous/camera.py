@@ -618,20 +618,20 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
 
         # Encode and publish annotated preview frames for both sides,
         # reusing the result objects from process_pair (no second inference).
-        # for side, frame, result in (
-        #     ("left",  left_frame,  left_result),
-        #     ("right", right_frame, right_result),
-        # ):
-        #     annotated = result.plot()
+        for side, frame, result in (
+            ("left",  left_frame,  left_result),
+            ("right", right_frame, right_result),
+        ):
+            annotated = result.plot()
 
-        #     with _snapshot_lock:
-        #         _latest_snapshots[side]["raw"]       = frame.copy()
-        #         _latest_snapshots[side]["annotated"] = annotated.copy()
+            with _snapshot_lock:
+                _latest_snapshots[side]["raw"]       = frame.copy()
+                _latest_snapshots[side]["annotated"] = annotated.copy()
 
-            # annotated = cv2.resize(annotated, (640, 360))
-            # ok, jpg = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 40])
-            # if ok:
-                # post_mqtt.publish_video_frame(side, jpg.tobytes())
+            annotated = cv2.resize(annotated, (640, 360))
+            ok, jpg = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 40])
+            if ok:
+                post_mqtt.publish_video_frame(side, jpg.tobytes())
 
 
 # ---------------------------------------------------------------------------
