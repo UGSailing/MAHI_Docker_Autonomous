@@ -6,7 +6,7 @@ STATE_TRANS_DIST = MARGE * 2
 BUOY_MATCH_DISTANCE = 7 #MARGE + 1.5
 
 APRIORI_BUOYLIST = [
-    [(51.02444824621797, 3.698660094842374)],   # buoy 0 — replace with real a-priori GPS coords
+    # [(51.02444824621797, 3.698660094842374)],   # buoy 0 — replace with real a-priori GPS coords
     [(51.024784241637356, 3.6992672505268906)],   # buoy 1 — replace with real a-priori GPS coords
 ]
 
