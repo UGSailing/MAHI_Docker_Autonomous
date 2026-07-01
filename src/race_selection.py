@@ -5,12 +5,12 @@ import time
 import paho.mqtt.client as mqtt
 
 import check_camera
-import check_gnss_2
+import check_gnss
 import execute_race
 import post_can
 
 
-MQTT_BROKER = "127.0.0.1"
+MQTT_BROKER = "172.17.0.1"
 MQTT_PORT = 1883
 MQTT_TOPIC_TX = "can/ugent/tx"
 MQTT_TOPIC_RX = "can/ugent/rx"
@@ -72,7 +72,7 @@ def on_message(client, userdata, msg):
 def run_system_checks():
     global state, error_flags, checks_started
 
-    gnss_ok = check_gnss_2.check()
+    gnss_ok = check_gnss.check()
     camera_ok = check_camera.check()
     # Docker shell / other software — not yet a separate module
     other_ok = True
