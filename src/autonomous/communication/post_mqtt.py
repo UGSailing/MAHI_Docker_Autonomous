@@ -203,4 +203,4 @@ def reset_rudder() -> None:
     can_id = 0x3
     state_bytes = bytes([0, 0, 0])
     print(f"Resetting rudder to 0 degrees")
-    publish_can_message(can_id,state_bytes)
+    #publish_can_message(can_id,state_bytes)

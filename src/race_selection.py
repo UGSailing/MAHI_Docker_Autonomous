@@ -193,7 +193,8 @@ def publish_loop(client):
         publish_can_message(client,MAHI_STATE_CAN_ID,state_bytes)
         print(f"Published: can_id={MAHI_STATE_CAN_ID}, state={current_state}")
 
-        flag_bytes = bytes([current_flags, post_can.get_temperature(), 0, 0, 0, 0, 0, 0])
+        #flag_bytes = bytes([current_flags, post_can.get_temperature(), 0, 0, 0, 0, 0, 0])
+        flag_bytes = bytes([current_flags, 0, 0, 0, 0, 0, 0, 0])
         publish_can_message(client, MAHI_ERROR_FLAGS_CAN_ID, flag_bytes)
         print(
             f"Published: can_id={MAHI_ERROR_FLAGS_CAN_ID}, "
