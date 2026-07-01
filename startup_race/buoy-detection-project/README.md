@@ -1,1 +1,0 @@
-# MAHI Docker Autonomous
