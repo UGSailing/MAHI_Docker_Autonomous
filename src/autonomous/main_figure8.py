@@ -111,7 +111,7 @@ def run() -> None:
     cam_thread.start()
 
     # Give the RTSP streams and YOLO model time to warm up.
-    time.sleep(10)
+    time.sleep(3)
     
     initial_boat_position = get_mqtt.get_boat_position()
     initial_start_position = (initial_boat_position['latitude'], initial_boat_position['longitude'])

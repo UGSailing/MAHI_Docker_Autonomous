@@ -676,12 +676,12 @@ def run_cameras() -> None:
         ),
         # Raw preview threads: publish frames without YOLO so the video feed
         # stays smooth regardless of inference speed.
-        threading.Thread(
-            target=raw_reader_thread, args=(LEFT_STREAM_URL,  "left"),  daemon=True
-        ),
-        threading.Thread(
-            target=raw_reader_thread, args=(RIGHT_STREAM_URL, "right"), daemon=True
-        ),
+        # threading.Thread(
+        #     target=raw_reader_thread, args=(LEFT_STREAM_URL,  "left"),  daemon=True
+        # ),
+        # threading.Thread(
+        #     target=raw_reader_thread, args=(RIGHT_STREAM_URL, "right"), daemon=True
+        # ),
     ]
     for t in threads:
         t.start()
