@@ -35,17 +35,17 @@ _config_stub = types.ModuleType("config")
 _config_stub.N_SLALOM_PTS               = 12
 _config_stub.N_ARC_PTS                  = 12
 _config_stub.FAST_SPEED                 = 3.0    # m/s
-_config_stub.SLOW_SPEED                 = 1.0    # m/s
+_config_stub.SLOW_SPEED                 = 3.0    # m/s
 _config_stub.WAYPOINT_DISTANCE          = 2    # m
 _config_stub.INTERPOLATE_USING_DISTANCE = True
 _config_stub.N_RAMP_WAYPOINTS           = 8
-_config_stub.RAMP_ACCELERATION          = .7
-_config_stub.WAYPOINT_DT                = 1
+_config_stub.RAMP_ACCELERATION          = .3
+_config_stub.WAYPOINT_DT                = .3
 sys.modules.setdefault("config", _config_stub)
 
 # Stubs moeten in sys.modules staan vóór de import
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from padplanning_sprint import padplanning_buoy  # noqa: E402
+from padplanning_dokken import padplanning_buoy  # noqa: E402
 
 # ── Lokale ENU-conversie ──────────────────────────────────────────────────────
 R_EARTH = 6_371_000.0
