@@ -493,7 +493,7 @@ if __name__ == "__main__":
     sys.modules["config"] = _cfg
 
     # Re-import config constants into module namespace for the smoke-test
-    import importlib, padplanning_dokken as _self
+    import importlib, autonomous.padplanning_sprint_dokken as _self
     for attr in ("FAST_SPEED", "SLOW_SPEED", "WAYPOINT_DT", "RAMP_ACCELERATION",
                  "N_SLALOM_PTS", "N_ARC_PTS"):
         setattr(_self, attr, getattr(_cfg, attr))

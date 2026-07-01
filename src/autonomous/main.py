@@ -18,9 +18,9 @@ from .config import INDEX_LOOK_AHEAD, MARGE, STATE_TRANS_DIST, APRIORI_BUOYLIST,
  
 match CURRENT_PAD:
     case Pad.SPRINT:
-        from .padplanning_sprint import padplanning_wrapper
+        from .padplanning_sprint_dokken import padplanning_wrapper
     case Pad.DOKKEN:
-        from .padplanning_dokken import padplanning_wrapper
+        from .padplanning_sprint_dokken import padplanning_wrapper
     case Pad.SLALOM:
         from .padplanning_slalom import padplanning_wrapper
 

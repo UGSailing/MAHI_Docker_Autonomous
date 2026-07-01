@@ -34,18 +34,18 @@ sys.modules["communication.get_mqtt"] = _mqtt_stub
 _config_stub = types.ModuleType("config")
 _config_stub.N_SLALOM_PTS               = 12
 _config_stub.N_ARC_PTS                  = 12
-_config_stub.FAST_SPEED                 = 3.0    # m/s
-_config_stub.SLOW_SPEED                 = 1.0    # m/s
+_config_stub.FAST_SPEED                 = 5.0    # m/s
+_config_stub.SLOW_SPEED                 = 2.0    # m/s
 _config_stub.WAYPOINT_DISTANCE          = 2    # m
 _config_stub.INTERPOLATE_USING_DISTANCE = True
 _config_stub.N_RAMP_WAYPOINTS           = 8
 _config_stub.RAMP_ACCELERATION          = .7
-_config_stub.WAYPOINT_DT                = 1
+_config_stub.WAYPOINT_DT                = 1.
 sys.modules.setdefault("config", _config_stub)
 
 # Stubs moeten in sys.modules staan vóór de import
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from padplanning_sprint import padplanning_buoy  # noqa: E402
+from autonomous.padplanning_sprint_dokken import padplanning_buoy  # noqa: E402
 
 # ── Lokale ENU-conversie ──────────────────────────────────────────────────────
 R_EARTH = 6_371_000.0
@@ -413,12 +413,14 @@ def make_plots(buoy_positions, scenarios, marge, out_course, out_sim):
     return travelled, sim_time
 
 
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     CLEARANCE = 5.0   # m extra marge om de boei
 
     # Één boei met een puntenwolk van mogelijke posities
-    buoy_variants  = [offset(0, -5)]
+    buoy_variants  = [offset(0, 35)]
     buoy_positions = [buoy_variants]
 
     # Startpositie: links van de boei, koers ~oost

@@ -45,7 +45,7 @@ sys.modules.setdefault("config", _config_stub)
 
 # Stubs moeten in sys.modules staan vóór de import
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from padplanning_dokken import padplanning_buoy  # noqa: E402
+from autonomous.padplanning_sprint_dokken import padplanning_buoy  # noqa: E402
 
 # ── Lokale ENU-conversie ──────────────────────────────────────────────────────
 R_EARTH = 6_371_000.0
