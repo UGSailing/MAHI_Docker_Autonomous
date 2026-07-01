@@ -36,4 +36,4 @@ FAST_SPEED = 4
 SLOW_SPEED = 2
 N_RAMP_METERS = 5.
 N_RAMP_WAYPOINTS  = round(N_RAMP_METERS / WAYPOINT_DISTANCE)     # intermediate speed steps at slow↔fast transitions
-
+RAMP_ACCELERATION = .3

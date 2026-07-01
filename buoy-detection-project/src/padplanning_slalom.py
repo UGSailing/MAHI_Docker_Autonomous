@@ -15,8 +15,9 @@ Changes vs. previous version
    • afrit  – quarter-circle (90°) around B1 from slalom end to exit point
               (replaces the old straight exit line)
 
-3. Speed ramping: N_RAMP_WAYPOINTS linearly-interpolated intermediate speeds
-   are inserted at every slow↔fast transition.
+3. Speed ramping: constant-acceleration ramp (RAMP_ACCELERATION) is used at
+   every slow↔fast transition, with ramp length derived from the kinematics
+   of accelerating/decelerating over the segment's waypoint spacing.
 """
 
 import math
@@ -32,31 +33,71 @@ from config import (
     SLOW_SPEED,
     WAYPOINT_DISTANCE,
     INTERPOLATE_USING_DISTANCE,
-    N_RAMP_WAYPOINTS,
+    RAMP_ACCELERATION,
 )
 
 Position = Tuple[float, float]   # (longitude, latitude)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Speed-ramp helper
+#  Speed-ramp helper  (versnelling-gebaseerd i.p.v. vast aantal waypoints)
 # ─────────────────────────────────────────────────────────────────────────────
+#
+# In plaats van een vast aantal ramp-waypoints wordt de ramp-lengte afgeleid
+# uit RAMP_ACCELERATION (m/s²): hoe groter het snelheidsverschil, hoe langer
+# (in meters/waypoints) de ramp moet zijn.
+#
+# Kinematica voor constante versnelling a, van v0 naar v1:
+#   afstand  d = |v1² - v0²| / (2a)
+# Het aantal waypoints dat nodig is om die afstand te overbruggen hangt af
+# van de lokale waypoint-spacing (meters/waypoint) van het segment waarin
+# de ramp valt.
 
-def _ramp(from_speed: float, to_speed: float) -> List[float]:
-    """
-    Return a list of N_RAMP_WAYPOINTS intermediate speeds between from_speed
-    and to_speed (exclusive of both endpoints).
+def _ramp_distance(v0: float, v1: float) -> float:
+    """Afstand (m) nodig om van v0 naar v1 te versnellen/vertragen met
+    constante RAMP_ACCELERATION."""
+    if RAMP_ACCELERATION <= 0:
+        return 0.0
+    return abs(v1 * v1 - v0 * v0) / (2.0 * RAMP_ACCELERATION)
 
-    N_RAMP_WAYPOINTS == 0  →  empty list  (hard switch, original behaviour)
-    N_RAMP_WAYPOINTS == 1  →  [average]
-    N_RAMP_WAYPOINTS == n  →  n linearly interpolated values
+
+def _ramp_n_waypoints(v0: float, v1: float, spacing: float) -> int:
+    """Aantal tussenliggende ramp-waypoints voor een overgang v0 → v1,
+    gegeven de waypoint-spacing (m) van het betreffende segment."""
+    if RAMP_ACCELERATION <= 0 or spacing <= 0:
+        return 0
+    d = _ramp_distance(v0, v1)
+    return max(0, round(d / spacing))
+
+
+def _ramp(from_speed: float, to_speed: float, spacing: float) -> List[float]:
     """
-    if N_RAMP_WAYPOINTS <= 0:
+    Return een lijst van tussenliggende snelheden tussen from_speed en
+    to_speed (exclusief beide eindpunten), met:
+      • een lengte (aantal waypoints) die overeenkomt met de afstand die
+        nodig is om te versnellen/vertragen met RAMP_ACCELERATION
+      • snelheden die de juiste kinematische v(s)-curve volgen voor
+        constante versnelling, NIET lineair geïnterpoleerd in waypoint-index.
+
+    Voor constante versnelling a geldt  v(s) = sqrt(v0² ± 2·a·s),
+    waarbij s de afgelegde afstand is vanaf het begin van de ramp.
+    """
+    n_ramp = _ramp_n_waypoints(from_speed, to_speed, spacing)
+    if n_ramp <= 0:
         return []
-    return [
-        from_speed + (to_speed - from_speed) * (i + 1) / (N_RAMP_WAYPOINTS + 1)
-        for i in range(N_RAMP_WAYPOINTS)
-    ]
+
+    accelerating = to_speed > from_speed
+    sign = 1.0 if accelerating else -1.0
+
+    speeds = []
+    for i in range(n_ramp):
+        s = (i + 1) * spacing                       # afgelegde afstand vanaf ramp-start
+        v_sq = from_speed * from_speed + sign * 2.0 * RAMP_ACCELERATION * s
+        v = math.sqrt(max(0.0, v_sq))
+        # Clip tegen het doel zodat afrondingen in n_ramp niet voorbij to_speed schieten
+        v = min(v, to_speed) if accelerating else max(v, to_speed)
+        speeds.append(v)
+    return speeds
 
 
 def _tag_with_ramp(
@@ -64,12 +105,14 @@ def _tag_with_ramp(
     body_speed: float,
     prev_speed: Optional[float],   # speed of the last waypoint before this segment
     next_speed: Optional[float],   # speed of the first waypoint after this segment
+    spacing: float,                # m/waypoint within this segment
 ) -> List[Tuple[np.ndarray, float]]:
     """
     Tag a list of waypoints with speeds, adding ramp-up at the start and
     ramp-down at the end when the adjacent segment has a different speed.
 
-    The ramp consumes the first / last N_RAMP_WAYPOINTS points of the segment.
+    The ramp consumes the first / last N waypoints of the segment, where N
+    is derived from RAMP_ACCELERATION and this segment's spacing.
     If the segment is too short to fit both ramps, the ramp is clipped.
     """
     n = len(waypoints)
@@ -77,14 +120,14 @@ def _tag_with_ramp(
 
     # Ramp up (start of segment)
     if prev_speed is not None and prev_speed != body_speed:
-        ramp_up = _ramp(prev_speed, body_speed)   # ascending toward body_speed
+        ramp_up = _ramp(prev_speed, body_speed, spacing)   # ascending toward body_speed
         for j, s in enumerate(ramp_up):
             if j < n:
                 speeds[j] = s
 
     # Ramp down (end of segment)
     if next_speed is not None and next_speed != body_speed:
-        ramp_dn = _ramp(body_speed, next_speed)   # descending toward next_speed
+        ramp_dn = _ramp(body_speed, next_speed, spacing)   # descending toward next_speed
         for j, s in enumerate(reversed(ramp_dn)):
             idx = n - 1 - j
             if idx >= 0:
@@ -443,25 +486,49 @@ def padplanning_slalom(
 
     # Strip the first point of every segment after the first to remove the
     # duplicate at each geometric join.
-    segments: List[Tuple[List[np.ndarray], float]] = []
+    segments_pts: List[Tuple[List[np.ndarray], float]] = []
     for si, (pts_seg, spd) in enumerate(raw_segments):
         trimmed = pts_seg if si == 0 else pts_seg[1:]
         if trimmed:          # skip degenerate empty segments
-            segments.append((trimmed, spd))
+            segments_pts.append((trimmed, spd))
+
+    # Compute the local waypoint spacing (m/waypoint) of each segment — needed
+    # to convert RAMP_ACCELERATION into a number of ramp waypoints within
+    # that segment.
+    def _segment_length(pts_seg: List[np.ndarray]) -> float:
+        return sum(
+            np.linalg.norm(pts_seg[i + 1] - pts_seg[i])
+            for i in range(len(pts_seg) - 1)
+        )
+
+    segments: List[Tuple[List[np.ndarray], float, float]] = []
+    for pts_seg, spd in segments_pts:
+        n_pts = max(1, len(pts_seg) - 1)
+        spacing = _segment_length(pts_seg) / n_pts if n_pts > 0 else 0.0
+        segments.append((pts_seg, spd, spacing))
 
     # Build tagged waypoints with ramps.
     # Ramps are applied ONLY on FAST (slalom) segments: they ramp down toward
     # the upcoming slow turn and ramp up from the previous slow turn.
     # All SLOW segments (approach excluded — it stays FAST throughout) keep a
     # flat speed so there is no zigzag at the slow↔fast boundaries.
+    # Ramp length is derived from RAMP_ACCELERATION and each segment's own
+    # waypoint spacing (constant-acceleration kinematics), instead of a fixed
+    # number of waypoints.
+    #
+    # The very first segment (the approach, or — if there is no approach —
+    # slalom_fwd) has no preceding segment to ramp from. There the boat is
+    # starting from a standstill, so we use 0.0 as the implicit "previous
+    # speed" rather than skipping the ramp-up entirely. This mirrors
+    # padplanning_buoy.py, where the incoming arc likewise ramps up from 0.
     all_waypoints: List[Tuple[np.ndarray, float]] = []
     n_segs = len(segments)
-    for si, (pts_seg, body_spd) in enumerate(segments):
+    for si, (pts_seg, body_spd, spacing) in enumerate(segments):
         if body_spd == F:
             # FAST segment: look at neighbouring speeds for ramp direction
-            prev_spd = segments[si - 1][1] if si > 0          else None
+            prev_spd = segments[si - 1][1] if si > 0          else 0.0
             next_spd = segments[si + 1][1] if si < n_segs - 1 else None
-            tagged = _tag_with_ramp(pts_seg, body_spd, prev_spd, next_spd)
+            tagged = _tag_with_ramp(pts_seg, body_spd, prev_spd, next_spd, spacing)
         else:
             # SLOW segment (oprit, arc, afrit): flat speed, no ramp
             tagged = [(wp, body_spd) for wp in pts_seg]
@@ -476,6 +543,24 @@ def padplanning_slalom(
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import math as _m
+    import types, sys
+
+    # Stubs so the smoke-test can run standalone (mirrors padplanning_buoy.py)
+    if "get_mqtt" not in sys.modules:
+        _mqtt = types.ModuleType("get_mqtt")
+        _mqtt.get_boat_position = lambda: {"longitude": 4.35, "latitude": 51.92}
+        sys.modules["get_mqtt"] = _mqtt
+
+    if "config" not in sys.modules:
+        _cfg = types.ModuleType("config")
+        _cfg.N_SLALOM_PTS = 12
+        _cfg.N_ARC_PTS = 12
+        _cfg.FAST_SPEED = 4.0
+        _cfg.SLOW_SPEED = 2.0
+        _cfg.WAYPOINT_DISTANCE = 0.2
+        _cfg.INTERPOLATE_USING_DISTANCE = True
+        _cfg.RAMP_ACCELERATION = 0.2
+        sys.modules["config"] = _cfg
 
     R = 6_371_000.0
     lat0, lon0 = 51.92, 4.35
