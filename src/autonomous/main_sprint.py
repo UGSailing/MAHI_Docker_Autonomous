@@ -9,7 +9,7 @@ import threading
 import time
 import random
 
-import camera
+from . import camera
 import communication.post_mqtt as post_mqtt
 import communication.get_mqtt as get_mqtt
 from padplanning_sprint import padplanning_wrapper
