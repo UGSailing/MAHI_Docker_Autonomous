@@ -1,8 +1,7 @@
 import math
 
-from config import APRIORI_BUOYLIST
-from config import TILT
-import post_mqtt
+from config import APRIORI_BUOYLIST, TILT
+import communication.post_mqtt as post_mqtt
 
 
 buoy0_lat, buoy0_lon = APRIORI_BUOYLIST[0][0]
@@ -159,7 +158,7 @@ def is_past_waypoint(
     # ------------------------------------------------------------------
     # 3. Publish the cross line for visualisation / debugging
     # ------------------------------------------------------------------
-    _publish_crossline(next_ll, te, tn, re, rn, tilt_signed)
+    # _publish_crossline(next_ll, te, tn, re, rn, tilt_signed)
 
     # ------------------------------------------------------------------
     # 4. Project boat position into path frame (origin = next_waypoint)
