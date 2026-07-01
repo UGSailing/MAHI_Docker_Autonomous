@@ -4,9 +4,14 @@ from .config import APRIORI_BUOYLIST, TILT
 from .communication import post_mqtt
 
 
-buoy0_lat, buoy0_lon = APRIORI_BUOYLIST[0][0]
-buoy1_lat, buoy1_lon = APRIORI_BUOYLIST[1][0]
-buoys = [(buoy0_lat, buoy0_lon), (buoy1_lat, buoy1_lon)]
+buoys = []
+
+for buoy_group in APRIORI_BUOYLIST:
+    if buoy_group and buoy_group[0]:
+        lat_lon = buoy_group[0]
+        if len(lat_lon) >= 2:
+            buoy_lat, buoy_lon = lat_lon[:2]
+            buoys.append((buoy_lat, buoy_lon))
 
 
 def _to_local_en(ref_lat: float, ref_lon: float, lat: float, lon: float):

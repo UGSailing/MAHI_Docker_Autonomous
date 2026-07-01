@@ -148,17 +148,17 @@ def publish_point(waypoint) -> None:
 
 def publish_path(waypoints: list[tuple[float, float]]) -> None:
     """Publish the planned path to navigation/path.
- 
+
     Each waypoint is a ((latitude, longitude), speed) tuple.  They are
     serialised as a JSON array of objects so subscribers don't need to
     know the tuple order:
- 
+
         [
             {"latitude": 50.9148, "longitude": 2.6892, "speed": 1.5},
             {"latitude": 50.9150, "longitude": 2.6895, "speed": 2.0},
             ...
         ]
- 
+
     QoS 1 and retain=True are used here (unlike video/detection publishes)
     because the path is mission-critical: a subscriber that connects after
     the publish still needs the current path, and we want at-least-once
@@ -198,3 +198,9 @@ def publish_can_message(can_id: int, data_bytes: bytes) -> None:
     info = client.publish(CAN_RX_TOPIC, payload=payload, qos=1, retain=False)
     if info.rc != mqtt.MQTT_ERR_SUCCESS:
         print(f"MQTT publish failed for CAN message: rc={info.rc}")
+def reset_rudder() -> None:
+    """ post a can message to reset the rudder to 0 degrees """
+    can_id = 0x3
+    state_bytes = bytes([0, 0, 0])
+    print(f"Resetting rudder to 0 degrees")
+    #publish_can_message(can_id,state_bytes)

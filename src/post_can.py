@@ -3,9 +3,9 @@ from typing import Optional
 import struct
 
 
-_last_temperature_celsius: Optional[float] = 25
+_last_temperature_celsius: int = 25
 
-def get_temperature() -> Optional[float]:
+def get_temperature() -> int:
     """Return the most recently parsed temperature value in °C."""
     return _last_temperature_celsius
 

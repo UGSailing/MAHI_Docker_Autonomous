@@ -82,6 +82,7 @@ def start_navigation(interval: float = 0.5) -> threading.Thread:
 
 
 def stop_navigation() -> None:
+    post_mqtt.reset_rudder()
     _stop_event.set()
     if _client is not None:
         _client.loop_stop()

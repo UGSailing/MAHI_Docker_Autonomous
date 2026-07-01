@@ -509,7 +509,6 @@ def process_pair(
     """
     if boat_pos is None:
         return False, buoy_positions, left_result, right_result
-
     latitude  = float(boat_pos["latitude"])
     longitude = float(boat_pos["longitude"])
     heading   = boat_pos["heading"] or 0
@@ -534,7 +533,7 @@ def process_pair(
                     conf=0.5,
                     device=MODEL_DEVICE,
                     half=USE_HALF,
-                    verbose=False,
+                    verbose=True,
                 )
                 left_result, right_result = batch_results[0], batch_results[1]
             else:
@@ -544,12 +543,12 @@ def process_pair(
                 if left_result is None:
                     left_result = model(
                         left_frame, conf=0.5, device=MODEL_DEVICE,
-                        half=USE_HALF, verbose=False,
+                        half=USE_HALF, verbose=True,
                     )[0]
                 if right_result is None:
                     right_result = model(
                         right_frame, conf=0.5, device=MODEL_DEVICE,
-                        half=USE_HALF, verbose=False,
+                        half=USE_HALF, verbose=True,
                     )[0]
 
     # Convert each buoy's a-priori position (first history entry) to
@@ -657,7 +656,6 @@ def worker_thread(left_box: LatestFrameBox, right_box: LatestFrameBox) -> None:
     latency over time.
     """
     while True:
-        print("Running")
         # Block until both boxes have a fresh frame.
         left_frame,  left_pos  = left_box.get()
         right_frame, right_pos = right_box.get()
