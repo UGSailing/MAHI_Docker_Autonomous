@@ -16,6 +16,7 @@ Aanpassingen t.o.v. simulate_slalom.py
 
 import math
 import sys
+import os
 import types
 from typing import List, Tuple
 
@@ -26,9 +27,9 @@ from matplotlib.lines import Line2D
 from matplotlib.collections import LineCollection
 
 # ── Lokale stubs zodat padplanning_sprint importeerbaar is zonder get_mqtt / config ──
-_mqtt_stub = types.ModuleType("get_mqtt")
+_mqtt_stub = types.ModuleType("communication.get_mqtt")
 _mqtt_stub.get_boat_position = lambda: {"longitude": 0.0, "latitude": 0.0, "heading": 0.0}
-sys.modules.setdefault("get_mqtt", _mqtt_stub)
+sys.modules["communication.get_mqtt"] = _mqtt_stub
 
 _config_stub = types.ModuleType("config")
 _config_stub.N_SLALOM_PTS               = 12
@@ -42,6 +43,7 @@ _config_stub.RAMP_ACCELERATION          = .7
 sys.modules.setdefault("config", _config_stub)
 
 # Stubs moeten in sys.modules staan vóór de import
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from padplanning_sprint import padplanning_buoy  # noqa: E402
 
 # ── Lokale ENU-conversie ──────────────────────────────────────────────────────
