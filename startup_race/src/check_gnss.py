@@ -23,7 +23,7 @@ def mock_check() -> bool:
     print("Not implemented yet but the code continues in order to check the statemachine")
     print("waiting 1 second")
     time.sleep(1)
-    return True
+    return False
 
 # def _is_zero_coordinate(latitude: float, longitude: float) -> bool:
 #     """

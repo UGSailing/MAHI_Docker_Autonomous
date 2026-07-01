@@ -39,7 +39,6 @@ _config_stub.SLOW_SPEED              = 2.    # m/s
 _config_stub.WAYPOINT_DISTANCE       = 3.0    # m
 _config_stub.INTERPOLATE_USING_DISTANCE = True
 _config_stub.N_RAMP_WAYPOINTS        = 10
-_config_stub.RAMP_ACCELERATION          = .5
 sys.modules.setdefault("config", _config_stub)
 
 # Nu pas importeren, want de stubs moeten eerst in sys.modules staan
@@ -104,6 +103,7 @@ def plan_path(
 
     waypoints = padplanning_slalom(
         buoys_centers,
+        heading_deg,
         boat_pos,
         state,
         slalom_offset,
@@ -420,7 +420,7 @@ if __name__ == "__main__":
 
     # Startpositie: ver links van de boeien, rijdt met ~oost-koers op de boeien af
     start = offset(-60, 0)
-    start_hdg = 120.0   # graden
+    start_hdg = -90.0   # graden
 
     # Scenarios: (label, boot_latlon, hdg, state, start_latlon, start_heading)
     # boot_latlon  = huidige bootpositie op het moment van padberekening

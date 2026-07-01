@@ -2,12 +2,13 @@ import base64
 import json
 import threading
 import time
-
 import paho.mqtt.client as mqtt
 
 import check_camera
 import check_gnss_2
 import execute_race
+import post_can
+
 
 MQTT_BROKER = "127.0.0.1"
 MQTT_PORT = 1883
@@ -34,7 +35,7 @@ FLAG_OTHER_SOFTWARE = 1 << 2
 FLAGS_ALL_OK = FLAG_GNSS | FLAG_CAMERA | FLAG_OTHER_SOFTWARE
 
 state = STATE_WAITING_AMS
-error_flags = 0
+error_flags = 7
 ecu_state = 0
 ecu_mission = MISSION_NONE
 selected_mission = MISSION_NONE
@@ -71,8 +72,8 @@ def on_message(client, userdata, msg):
 def run_system_checks():
     global state, error_flags, checks_started
 
-    gnss_ok = check_gnss_2.mock_check()
-    camera_ok = check_camera.mock_check()
+    gnss_ok = check_gnss_2.check()
+    camera_ok = check_camera.check()
     # Docker shell / other software — not yet a separate module
     other_ok = True
 
@@ -125,10 +126,10 @@ def state_machine_loop():
             and current_ecu_state == 1
             and not current_checks_started
         ):
+            time.sleep(4)
             with state_lock:
                 state = STATE_CHECK_SYSTEMS
                 checks_started = True
-            time.sleep(4)
             print(f"AMS enabled, state updated to {STATE_CHECK_SYSTEMS}")
             threading.Thread(target=run_system_checks, daemon=True).start()
 
@@ -153,7 +154,6 @@ def state_machine_loop():
         elif current_state == STATE_FINISHED and current_ecu_state == 0:
             with state_lock:
                 state = STATE_WAITING_AMS
-                error_flags = 0
                 checks_started = False
                 race_started = False
                 selected_mission = MISSION_NONE
@@ -162,7 +162,6 @@ def state_machine_loop():
         elif current_state == STATE_ERROR and current_ecu_state == 0:
             with state_lock:
                 state = STATE_WAITING_AMS
-                error_flags = 0
                 checks_started = False
                 race_started = False
                 selected_mission = MISSION_NONE
@@ -170,7 +169,6 @@ def state_machine_loop():
         elif current_ecu_state == 255:
             with state_lock:
                 state = STATE_ERROR
-                error_flags = 0
                 checks_started = False
                 race_started = False
                 selected_mission = MISSION_NONE
@@ -195,14 +193,12 @@ def publish_loop(client):
         publish_can_message(client,MAHI_STATE_CAN_ID,state_bytes)
         print(f"Published: can_id={MAHI_STATE_CAN_ID}, state={current_state}")
 
-        if current_state in (STATE_CHECK_SYSTEMS, STATE_SYSTEMS_OK, STATE_ERROR):
-            flag_bytes = bytes([current_flags,0, 0, 0, 0, 0, 0, 0])
-            publish_can_message(client, MAHI_ERROR_FLAGS_CAN_ID, flag_bytes)
-            print(
-                f"Published: can_id={MAHI_ERROR_FLAGS_CAN_ID}, "
-                f"error_flags=0b{current_flags:03b}"
-            )
-
+        flag_bytes = bytes([current_flags, post_can.get_temperature(), 0, 0, 0, 0, 0, 0])
+        publish_can_message(client, MAHI_ERROR_FLAGS_CAN_ID, flag_bytes)
+        print(
+            f"Published: can_id={MAHI_ERROR_FLAGS_CAN_ID}, "
+            f"error_flags=0b{current_flags:03b}"
+        )
         time.sleep(1)
 
 

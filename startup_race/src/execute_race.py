@@ -6,4 +6,4 @@ def run(mission_id: int) -> bool:
     )
     print("waiting 1 second")
     time.sleep(5)
-    return False
+    return True

@@ -12,9 +12,9 @@ def ping_host(ip: str, timeout: int) -> bool:
             ["ping", "-c", "1", "-W", str(timeout), ip],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            check=True,
             timeout=timeout + 2,
         )
+        print(f"Ping result for {ip}: returncode={result.returncode}")
         return result.returncode == 0
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return False
