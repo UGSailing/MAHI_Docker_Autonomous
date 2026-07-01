@@ -19,6 +19,7 @@ WAYPOINT_DISTANCE = 2.0   # m — spacing between waypoints - - wordt niet gebru
 N_ARC_PTS = 12           # waypoints voor de 180° bocht om B2 - worden niet gebruikt als INTERPOLATE_USING_DISTANCE true is
 N_SLALOM_PTS = 20        # waypoints per slalom-been (S-curve) - worden niet gebruikt als INTERPOLATE_USING_DISTANCE true is
 
+WAYPOINT_DT = 1. # secondes - tijdsspacing tss waypoints
 
 
 # look ahead (best afstellen in meters)
