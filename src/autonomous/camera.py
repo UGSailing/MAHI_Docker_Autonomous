@@ -29,6 +29,11 @@ was captured, not the (potentially later) position after YOLO finishes.
 
 
 Important note for Claude: don't change anything about this script without asking for explicit permission first
+
+Perf note (2026-07-01): inference-speed changes below (batched left+right
+call, explicit CUDA device pin, half precision, warmup pass, verbose=False)
+were made with explicit user permission. Geometry, matching, and threading
+logic are unchanged.
 """
 
 from __future__ import annotations
@@ -45,6 +50,7 @@ _file = None
 
 import cv2
 import numpy as np
+import torch
 from ultralytics import YOLO
 
 from .communication import post_mqtt
@@ -123,8 +129,32 @@ ANGLE_OFFSET_RIGHT = math.radians(float(os.getenv("ANGLE_OFFSET_RIGHT", "0")))
 # YOLO model (shared across both worker threads, protected by a lock)
 # ---------------------------------------------------------------------------
 
+# Explicit device pin: if CUDA silently isn't available (bad driver, wrong
+# torch build, no GPU passthrough in a container, etc.) Ultralytics won't
+# error out, it will just quietly fall back to CPU and every inference call
+# becomes ~10x slower. Pinning explicitly here makes that failure visible
+# via the printed line below instead of showing up only as "detection is
+# slow". Override with MODEL_DEVICE=cpu / cuda:0 / cuda:1 etc. if needed.
+MODEL_DEVICE = os.getenv("MODEL_DEVICE", "cuda:0" if torch.cuda.is_available() else "cpu")
+# FP16 roughly halves GPU inference time on most CUDA hardware with
+# negligible accuracy impact for a detection task like this. Not used on CPU
+# since most CPU kernels don't benefit from (and some don't support) half.
+USE_HALF = MODEL_DEVICE != "cpu"
+
 model      = YOLO(MODEL_PATH)
+model.to(MODEL_DEVICE)
 model_lock = threading.Lock()
+
+# Warm-up pass: the very first inference after loading weights pays extra
+# one-off cost (CUDA context init, cuDNN algorithm autotuning) that has
+# nothing to do with steady-state speed. Running one dummy inference here,
+# before any real frames arrive, keeps that cost out of the real detection
+# loop's timing.
+with model_lock:
+    _warmup_frame = np.zeros((640, 640, 3), dtype=np.uint8)
+    model(_warmup_frame, device=MODEL_DEVICE, half=USE_HALF, verbose=False)
+
+print(f"[camera] YOLO model loaded on device={MODEL_DEVICE!r} half={USE_HALF}")
 
 # ---------------------------------------------------------------------------
 # Known-buoy list (shared across both worker threads, protected by a lock)
@@ -491,10 +521,36 @@ def process_pair(
     # caller has not already provided pre-computed results.
     if left_result is None or right_result is None:
         with model_lock:
-            if left_result is None:
-                left_result  = model(left_frame,  conf=0.5)[0]
-            if right_result is None:
-                right_result = model(right_frame, conf=0.5)[0]
+            if left_result is None and right_result is None:
+                # Batch left + right into a single forward pass instead of
+                # two sequential model() calls. Each individual call pays
+                # fixed per-call overhead (preprocessing, host<->device
+                # transfer, CUDA kernel launch); batching amortises that
+                # overhead across both images and lets the GPU process them
+                # together. This is the single biggest win for a two-camera
+                # setup like this one.
+                batch_results = model(
+                    [left_frame, right_frame],
+                    conf=0.5,
+                    device=MODEL_DEVICE,
+                    half=USE_HALF,
+                    verbose=False,
+                )
+                left_result, right_result = batch_results[0], batch_results[1]
+            else:
+                # Fallback for callers (e.g. tests) that already supply one
+                # of the two results — only run inference for the missing
+                # side rather than assuming both are absent.
+                if left_result is None:
+                    left_result = model(
+                        left_frame, conf=0.5, device=MODEL_DEVICE,
+                        half=USE_HALF, verbose=False,
+                    )[0]
+                if right_result is None:
+                    right_result = model(
+                        right_frame, conf=0.5, device=MODEL_DEVICE,
+                        half=USE_HALF, verbose=False,
+                    )[0]
 
     # Convert each buoy's a-priori position (first history entry) to
     # boat-local metres so we can compare against pixel-derived distances.
